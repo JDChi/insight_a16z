@@ -4,7 +4,7 @@ compatibility_date = "2026-04-12"
 
 [vars]
 AUTH_MODE = "cloudflare-access"
-OPENAI_MODEL = "gpt-4.1-mini"
+AI_MODEL = "gpt-4.1-mini"
 
 [[d1_databases]]
 binding = "DB"

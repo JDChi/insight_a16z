@@ -1,15 +1,50 @@
+import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { dirname, resolve } from "node:path";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
+import { fileURLToPath } from "node:url";
 
 import { createApp } from "./index";
+
+function loadDevVars() {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  const candidateFiles = [resolve(currentDir, "../.dev.vars"), resolve(currentDir, "../../../.dev.vars")];
+
+  for (const file of candidateFiles) {
+    if (!existsSync(file)) continue;
+
+    const content = readFileSync(file, "utf8");
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+
+      const separatorIndex = trimmed.indexOf("=");
+      if (separatorIndex <= 0) continue;
+
+      const key = trimmed.slice(0, separatorIndex).trim();
+      const rawValue = trimmed.slice(separatorIndex + 1).trim();
+      const value = rawValue.replace(/^['"]|['"]$/g, "");
+      if (!(key in process.env)) {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
+loadDevVars();
 
 const app = createApp();
 
 const env = {
   AUTH_MODE: "test" as const,
   TEST_ADMIN_EMAIL: process.env.TEST_ADMIN_EMAIL ?? "admin@local.test",
-  SEED_FIXTURES: process.env.SEED_FIXTURES ?? "false"
+  SEED_FIXTURES: process.env.SEED_FIXTURES ?? "false",
+  AI_API_KEY: process.env.AI_API_KEY,
+  AI_BASE_URL: process.env.AI_BASE_URL,
+  AI_MODEL: process.env.AI_MODEL,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  OPENAI_MODEL: process.env.OPENAI_MODEL
 };
 
 const server = createServer(async (req, res) => {

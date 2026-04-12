@@ -1,5 +1,4 @@
-import { generateObject } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
+import { generateText, Output } from "ai";
 import {
   articleAnalysisSchema,
   digestAnalysisSchema,
@@ -8,10 +7,30 @@ import {
   type DigestAnalysis,
   type TopicAnalysis
 } from "@insight-a16z/core";
+import { createMinimax, createMinimaxOpenAI } from "vercel-minimax-ai-provider";
 
 import type { Env } from "./env";
 import type { StoredArticle } from "./types";
 import { slugify, unique } from "./utils";
+
+interface AiProviderConfig {
+  apiKey: string;
+  baseURL?: string;
+  modelName: string;
+  compatMode: "anthropic" | "openai";
+}
+
+interface PromptConfig {
+  objectPrompt: string;
+  jsonPrompt: string;
+}
+
+interface ArticleGenerationInput {
+  sourceTitle: string;
+  contentType: string;
+  publishedAt: string;
+  plainText: string;
+}
 
 function titleCaseTopic(topic: string): string {
   return topic
@@ -189,6 +208,123 @@ function buildChineseFallbackAnalysis(input: {
   };
 }
 
+export function extractJsonObject(text: string): string {
+  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const source = fencedMatch?.[1] ?? text;
+  const start = source.indexOf("{");
+
+  if (start < 0) {
+    throw new Error("No JSON object found in model output");
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(start, index + 1).trim();
+      }
+    }
+  }
+
+  throw new Error("Incomplete JSON object in model output");
+}
+
+function normalizeStringArray(input: unknown, minimum: number, maximum: number, fallback: string[]): string[] {
+  const values = Array.isArray(input) ? input.filter((item): item is string => typeof item === "string") : [];
+  const normalized = unique([...values, ...fallback].map((item) => item.trim()).filter(Boolean)).slice(0, maximum);
+
+  if (normalized.length >= minimum) return normalized;
+  return unique([...normalized, ...fallback].map((item) => item.trim()).filter(Boolean)).slice(0, Math.max(minimum, maximum));
+}
+
+function normalizeEvidenceLinks(
+  input: unknown,
+  keyPoints: string[],
+  keyJudgements: string[]
+): ArticleAnalysis["evidenceLinks"] {
+  const values = Array.isArray(input)
+    ? input
+        .map((item) => {
+          if (!item || typeof item !== "object") return null;
+          const record = item as Record<string, unknown>;
+          const claim = typeof record.claim === "string" ? record.claim : null;
+          const evidenceText = typeof record.evidenceText === "string" ? record.evidenceText : null;
+          const sourceLocator = typeof record.sourceLocator === "string" ? record.sourceLocator : null;
+          if (!claim || !evidenceText || !sourceLocator) return null;
+          return { claim, evidenceText, sourceLocator };
+        })
+        .filter(Boolean)
+    : [];
+
+  if (values.length >= 2) {
+    return values.slice(0, 4) as ArticleAnalysis["evidenceLinks"];
+  }
+
+  return keyPoints.slice(0, 2).map((point, index) => ({
+    claim: keyJudgements[index] ?? point,
+    evidenceText: point,
+    sourceLocator: `paragraph:${index + 1}`
+  }));
+}
+
+function normalizeArticleAnalysisOutput(raw: unknown, article: ArticleGenerationInput): ArticleAnalysis {
+  const candidateTopics = inferTopicsFromText(`${article.sourceTitle}\n${article.plainText}`);
+  const fallback = buildChineseFallbackAnalysis({
+    sourceTitle: article.sourceTitle,
+    contentType: article.contentType,
+    candidateTopics,
+    plainText: article.plainText
+  });
+  const record = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+
+  const summary = typeof record.summary === "string" && record.summary.trim().length > 0 ? record.summary.trim() : fallback.summary;
+  const keyPoints = normalizeStringArray(record.keyPoints, 3, 5, fallback.keyPoints);
+  const keyJudgements = normalizeStringArray(record.keyJudgements, 2, 5, fallback.keyJudgements);
+  const normalizedTopics = normalizeStringArray(record.candidateTopics, 1, 4, candidateTopics);
+  const evidenceLinks = normalizeEvidenceLinks(record.evidenceLinks, keyPoints, keyJudgements);
+  const zhTitle =
+    typeof record.zhTitle === "string" && record.zhTitle.trim().length > 0
+      ? record.zhTitle.trim()
+      : deriveInsightTitle({
+          sourceTitle: article.sourceTitle,
+          summary,
+          keyJudgements,
+          candidateTopics: normalizedTopics
+        });
+
+  return articleAnalysisSchema.parse({
+    zhTitle,
+    summary,
+    keyPoints,
+    keyJudgements,
+    candidateTopics: normalizedTopics,
+    evidenceLinks
+  });
+}
+
 export interface AnalysisClient {
   analyzeArticle(article: {
     sourceTitle: string;
@@ -307,42 +443,84 @@ export class HeuristicAnalysisClient implements AnalysisClient {
 }
 
 export class VercelAiAnalysisClient implements AnalysisClient {
-  private readonly openai;
+  private readonly modelFactory;
   private readonly modelName: string;
 
   constructor(env: Env) {
-    if (!env.OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is required for VercelAiAnalysisClient");
+    const config = resolveAiProviderConfig(env);
+
+    if (!config) {
+      throw new Error("AI_API_KEY or OPENAI_API_KEY is required for VercelAiAnalysisClient");
     }
 
-    this.openai = createOpenAI({
-      apiKey: env.OPENAI_API_KEY
-    });
-    this.modelName = env.OPENAI_MODEL ?? "gpt-4.1-mini";
+    this.modelFactory =
+      config.compatMode === "openai"
+        ? createMinimaxOpenAI({
+            apiKey: config.apiKey,
+            baseURL: config.baseURL
+          })
+        : createMinimax({
+            apiKey: config.apiKey,
+            baseURL: config.baseURL
+          });
+    this.modelName = config.modelName;
   }
 
-  async analyzeArticle(article: {
-    sourceTitle: string;
-    contentType: string;
-    publishedAt: string;
-    plainText: string;
-  }): Promise<ArticleAnalysis> {
-    const result = await generateObject({
-      model: this.openai(this.modelName),
-      schema: articleAnalysisSchema,
-      prompt: [
-        "你是一个严谨的中文科技内容分析助手。",
-        "请将 a16z 的原文文章分析为结构化中文结果，保持信息密度高，避免营销语气。",
-        "候选专题 slug 使用英文 kebab-case，例如 agent-workflows、consumer-ai。",
-        `标题: ${article.sourceTitle}`,
-        `类型: ${article.contentType}`,
-        `发布日期: ${article.publishedAt}`,
-        "正文:",
-        article.plainText
-      ].join("\n")
-    });
+  private getModel() {
+    return this.modelFactory(this.modelName) as never;
+  }
 
-    const parsed = articleAnalysisSchema.parse(result.object);
+  private async generateStructured<T>(
+    schema: { parse(input: unknown): T },
+    prompt: PromptConfig,
+    repair?: (text: string) => T
+  ): Promise<T> {
+    try {
+      const result = await generateText({
+        model: this.getModel(),
+        output: Output.object({
+          schema: schema as never
+        }),
+        prompt: prompt.objectPrompt
+      });
+
+      return schema.parse(result.output);
+    } catch (error) {
+      const result = await generateText({
+        model: this.getModel(),
+        prompt: prompt.jsonPrompt
+      });
+
+      if (repair) {
+        return repair(result.text);
+      }
+
+      const json = extractJsonObject(result.text);
+      return schema.parse(JSON.parse(json));
+    }
+  }
+
+  async analyzeArticle(article: ArticleGenerationInput): Promise<ArticleAnalysis> {
+    const sharedPrompt = [
+      "你是一个严谨的中文科技内容分析助手。",
+      "请将 a16z 的原文文章分析为结构化中文结果，保持信息密度高，避免营销语气。",
+      "候选专题 slug 使用英文 kebab-case，例如 agent-workflows、consumer-ai。",
+      `标题: ${article.sourceTitle}`,
+      `类型: ${article.contentType}`,
+      `发布日期: ${article.publishedAt}`,
+      "正文:",
+      article.plainText
+    ].join("\n");
+
+    const parsed = await this.generateStructured(articleAnalysisSchema, {
+      objectPrompt: sharedPrompt,
+      jsonPrompt: [
+        sharedPrompt,
+        "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释、标题或代码块。",
+        '输出格式必须是 {"summary":"...","keyPoints":["..."],"keyJudgements":["..."],"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
+      ].join("\n")
+    }, (text) => normalizeArticleAnalysisOutput(JSON.parse(extractJsonObject(text)), article));
+
     return {
       ...parsed,
       zhTitle: deriveInsightTitle({
@@ -364,18 +542,25 @@ export class VercelAiAnalysisClient implements AnalysisClient {
       )
       .join("\n\n");
 
-    const result = await generateObject({
-      model: this.openai(this.modelName),
-      schema: topicAnalysisSchema,
-      prompt: [
-        "你是一个严谨的中文 AI 研究编辑。",
-        "请基于多篇 a16z 文章生成专题分析，输出必须可验证，趋势推演需要克制且带条件。",
-        `专题 slug: ${topicSlug}`,
-        context
-      ].join("\n")
-    });
-
-    return topicAnalysisSchema.parse(result.object);
+    try {
+      return await this.generateStructured(topicAnalysisSchema, {
+        objectPrompt: [
+          "你是一个严谨的中文 AI 研究编辑。",
+          "请基于多篇 a16z 文章生成专题分析，输出必须可验证，趋势推演需要克制且带条件。",
+          `专题 slug: ${topicSlug}`,
+          context
+        ].join("\n"),
+        jsonPrompt: [
+          "你是一个严谨的中文 AI 研究编辑。",
+          "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释或代码块。",
+          `专题 slug: ${topicSlug}`,
+          context,
+          '输出格式必须是 {"topicName":"...","intro":"...","currentConsensus":["..."],"disagreements":["..."],"trendPredictions":[{"statement":"...","triggerConditions":["..."],"timeWindow":"未来 1-2 年","confidence":"high|medium|low","supportingEvidence":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}],"supportingArticleIds":["..."]}'
+        ].join("\n")
+      });
+    } catch (error) {
+      return new HeuristicAnalysisClient().analyzeTopic(topicSlug, articles);
+    }
   }
 
   async analyzeDigest(input: { weekStart: string; weekEnd: string; articles: StoredArticle[] }): Promise<DigestAnalysis> {
@@ -383,23 +568,45 @@ export class VercelAiAnalysisClient implements AnalysisClient {
       .map((article) => `${article.zhTitle}\n${article.summary}\n${article.keyJudgements.join(" | ")}`)
       .join("\n\n");
 
-    const result = await generateObject({
-      model: this.openai(this.modelName),
-      schema: digestAnalysisSchema,
-      prompt: [
-        "你是一个严谨的中文科技周报编辑。",
-        "请基于本周收录的 a16z AI 文章生成结构化周报，突出最重要的信号与趋势变化。",
-        `周报周期: ${input.weekStart} 至 ${input.weekEnd}`,
-        context
-      ].join("\n")
-    });
-
-    return digestAnalysisSchema.parse(result.object);
+    try {
+      return await this.generateStructured(digestAnalysisSchema, {
+        objectPrompt: [
+          "你是一个严谨的中文科技周报编辑。",
+          "请基于本周收录的 a16z AI 文章生成结构化周报，突出最重要的信号与趋势变化。",
+          `周报周期: ${input.weekStart} 至 ${input.weekEnd}`,
+          context
+        ].join("\n"),
+        jsonPrompt: [
+          "你是一个严谨的中文科技周报编辑。",
+          "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释或代码块。",
+          `周报周期: ${input.weekStart} 至 ${input.weekEnd}`,
+          context,
+          '输出格式必须是 {"title":"...","topSignals":["..."],"topicMovements":["..."],"trendPredictions":[{"statement":"...","triggerConditions":["..."],"timeWindow":"未来 1-2 年","confidence":"high|medium|low","supportingEvidence":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}]}'
+        ].join("\n")
+      });
+    } catch (error) {
+      return new HeuristicAnalysisClient().analyzeDigest(input);
+    }
   }
 }
 
+export function resolveAiProviderConfig(env: Env): AiProviderConfig | null {
+  const apiKey = env.AI_API_KEY ?? env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  const baseURL = env.AI_BASE_URL;
+  const compatMode =
+    env.AI_COMPAT_MODE ?? (baseURL && !baseURL.includes("/anthropic/") ? "openai" : "anthropic");
+
+  return {
+    apiKey,
+    baseURL,
+    modelName: env.AI_MODEL ?? env.OPENAI_MODEL ?? "gpt-4.1-mini",
+    compatMode
+  };
+}
+
 export function createAnalysisClient(env: Env): AnalysisClient {
-  if (env.OPENAI_API_KEY) {
+  if (resolveAiProviderConfig(env)) {
     return new VercelAiAnalysisClient(env);
   }
 

@@ -1,0 +1,8 @@
+# OpenAI-compatible provider settings for local API development
+AI_BASE_URL=https://api.example.com/v1
+AI_API_KEY=replace-with-your-api-key
+AI_MODEL=replace-with-your-model
+
+# Optional local admin/testing settings
+TEST_ADMIN_EMAIL=admin@local.test
+SEED_FIXTURES=false
