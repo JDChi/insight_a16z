@@ -32,6 +32,9 @@ interface ArticleGenerationInput {
   plainText: string;
 }
 
+const MAX_ARTICLE_PROMPT_CHARS = 12000;
+const MODEL_TIMEOUT_MS = 120000;
+
 function titleCaseTopic(topic: string): string {
   return topic
     .split("-")
@@ -325,6 +328,38 @@ function normalizeArticleAnalysisOutput(raw: unknown, article: ArticleGeneration
   });
 }
 
+export function repairArticleAnalysisText(text: string, article: ArticleGenerationInput): ArticleAnalysis {
+  try {
+    return normalizeArticleAnalysisOutput(JSON.parse(extractJsonObject(text)), article);
+  } catch {
+    return normalizeArticleAnalysisOutput({}, article);
+  }
+}
+
+export function prepareArticlePlainTextForModel(plainText: string): string {
+  const trimmed = plainText.trim();
+  if (trimmed.length <= MAX_ARTICLE_PROMPT_CHARS) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, MAX_ARTICLE_PROMPT_CHARS)}\n\n[以下内容为节选，已按长度截断以保证分析稳定性]`;
+}
+
+export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export interface AnalysisClient {
   analyzeArticle(article: {
     sourceTitle: string;
@@ -476,20 +511,28 @@ export class VercelAiAnalysisClient implements AnalysisClient {
     repair?: (text: string) => T
   ): Promise<T> {
     try {
-      const result = await generateText({
-        model: this.getModel(),
-        output: Output.object({
-          schema: schema as never
+      const result = await withTimeout(
+        generateText({
+          model: this.getModel(),
+          output: Output.object({
+            schema: schema as never
+          }),
+          prompt: prompt.objectPrompt
         }),
-        prompt: prompt.objectPrompt
-      });
+        MODEL_TIMEOUT_MS,
+        "structured-object-generation"
+      );
 
       return schema.parse(result.output);
     } catch (error) {
-      const result = await generateText({
-        model: this.getModel(),
-        prompt: prompt.jsonPrompt
-      });
+      const result = await withTimeout(
+        generateText({
+          model: this.getModel(),
+          prompt: prompt.jsonPrompt
+        }),
+        MODEL_TIMEOUT_MS,
+        "structured-json-generation"
+      );
 
       if (repair) {
         return repair(result.text);
@@ -501,6 +544,7 @@ export class VercelAiAnalysisClient implements AnalysisClient {
   }
 
   async analyzeArticle(article: ArticleGenerationInput): Promise<ArticleAnalysis> {
+    const modelPlainText = prepareArticlePlainTextForModel(article.plainText);
     const sharedPrompt = [
       "你是一个严谨的中文科技内容分析助手。",
       "请将 a16z 的原文文章分析为结构化中文结果，保持信息密度高，避免营销语气。",
@@ -509,17 +553,22 @@ export class VercelAiAnalysisClient implements AnalysisClient {
       `类型: ${article.contentType}`,
       `发布日期: ${article.publishedAt}`,
       "正文:",
-      article.plainText
+      modelPlainText
     ].join("\n");
 
-    const parsed = await this.generateStructured(articleAnalysisSchema, {
-      objectPrompt: sharedPrompt,
-      jsonPrompt: [
-        sharedPrompt,
-        "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释、标题或代码块。",
-        '输出格式必须是 {"summary":"...","keyPoints":["..."],"keyJudgements":["..."],"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
-      ].join("\n")
-    }, (text) => normalizeArticleAnalysisOutput(JSON.parse(extractJsonObject(text)), article));
+    let parsed: ArticleAnalysis;
+    try {
+      parsed = await this.generateStructured(articleAnalysisSchema, {
+        objectPrompt: sharedPrompt,
+        jsonPrompt: [
+          sharedPrompt,
+          "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释、标题或代码块。",
+          '输出格式必须是 {"summary":"...","keyPoints":["..."],"keyJudgements":["..."],"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
+        ].join("\n")
+      }, (text) => repairArticleAnalysisText(text, article));
+    } catch {
+      parsed = await new HeuristicAnalysisClient().analyzeArticle(article);
+    }
 
     return {
       ...parsed,
