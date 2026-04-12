@@ -18,11 +18,7 @@ const topics = await getAdminTopics();
           id: topic.id,
           title: toChineseTopicName(topic.name),
           meta: `${topic.articleCount} 篇文章 · 更新于 ${topic.updatedAt}`,
-          status: topic.reviewState,
-          publishAction: {
-            entityType: "topic",
-            entityId: topic.id
-          }
+          status: topic.reviewState
         }))}
       />
     </AdminShell>

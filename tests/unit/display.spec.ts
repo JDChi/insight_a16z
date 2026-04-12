@@ -14,7 +14,10 @@ describe("display helpers", () => {
     expect(toChineseTopicName("Enterprise Ai")).toBe("企业 AI");
     expect(toChineseReviewState("published")).toBe("已发布");
     expect(toChineseReviewState("reviewing")).toBe("待审核");
+    expect(toChineseReviewState("ingested")).toBe("待分析");
+    expect(toChineseReviewState("processing")).toBe("分析中");
     expect(toChineseJobType("weekly-ingestion")).toBe("每周采集");
+    expect(toChineseJobType("article-processing")).toBe("文章处理");
     expect(toChineseJobType("topic-rebuild")).toBe("专题重建");
     expect(toChineseConfidence("high")).toBe("高置信度");
     expect(toChineseConfidence("medium")).toBe("中置信度");

@@ -16,7 +16,11 @@ const jobs = await getJobs();
       <div class="panel actions-panel">
         <form method="post" action="/admin/api/actions">
           <input type="hidden" name="kind" value="ingest-live" />
-          <button type="submit">导入 a16z 真文章</button>
+          <button type="submit">导入最近一年文章</button>
+        </form>
+        <form method="post" action="/admin/api/actions">
+          <input type="hidden" name="kind" value="process-pending" />
+          <button type="submit">处理待分析文章</button>
         </form>
         <form method="post" action="/admin/api/actions">
           <input type="hidden" name="kind" value="rebuild-topics" />
@@ -28,8 +32,8 @@ const jobs = await getJobs();
         </form>
       </div>
       <div class="grid-two">
-        <article class="panel metric"><strong>{overview.draftArticles}</strong><span>草稿文章</span></article>
-        <article class="panel metric"><strong>{overview.reviewingArticles}</strong><span>处理中文章</span></article>
+        <article class="panel metric"><strong>{overview.draftArticles}</strong><span>待分析文章</span></article>
+        <article class="panel metric"><strong>{overview.reviewingArticles}</strong><span>分析中文章</span></article>
         <article class="panel metric"><strong>{overview.publishedArticles}</strong><span>已发布文章</span></article>
         <article class="panel metric"><strong>{overview.topicsInReview}</strong><span>处理中专题</span></article>
       </div>

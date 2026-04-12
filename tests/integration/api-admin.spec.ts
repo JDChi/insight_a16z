@@ -42,4 +42,27 @@ describe("admin API", () => {
 
     expect(updated.reviewState).toBe("published");
   });
+
+  it("processes queued articles from the admin API", async () => {
+    const app = createApp();
+    const headers = {
+      "cf-access-authenticated-user-email": "admin@local.test"
+    };
+
+    const articlesResponse = await app.request("/internal/articles", { headers }, adminEnv);
+    const articles = await articlesResponse.json();
+    const target = articles[0];
+
+    const stateResponse = await app.request(`/internal/state/article/${target.id}/ingested`, { method: "POST", headers }, adminEnv);
+    expect(stateResponse.status).toBe(200);
+
+    const processResponse = await app.request("/internal/analysis/articles/process", { method: "POST", headers }, adminEnv);
+    expect(processResponse.status).toBe(200);
+
+    const updatedArticlesResponse = await app.request("/internal/articles", { headers }, adminEnv);
+    const updatedArticles = await updatedArticlesResponse.json();
+    const updated = updatedArticles.find((item: { id: string }) => item.id === target.id);
+
+    expect(updated.reviewState).toBe("published");
+  });
 });

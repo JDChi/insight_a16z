@@ -15,6 +15,7 @@ import {
   fetchText,
   filterTargetContentType,
   isLikelyEditorialArticle,
+  isPublishedWithinPastYear,
   parseArticleDocument
 } from "./ingestion";
 import type { ContentRepository, ObjectStore, ParsedArticle, StoredArticle } from "./types";
@@ -78,7 +79,6 @@ export class ContentService {
 
   async runWeeklyIngestion(options?: {
     limit?: number;
-    autoPublish?: boolean;
     rebuildTopics?: boolean;
     rebuildDigest?: boolean;
     resetBeforeImport?: boolean;
@@ -92,15 +92,16 @@ export class ContentService {
 
       const listingUrls = [
         "https://a16z.com/ai/",
-        "https://a16z.com/category/ai/",
-        "https://a16z.com/category/ai/page/2/"
+        ...Array.from({ length: 12 }, (_, index) =>
+          index === 0 ? "https://a16z.com/category/ai/" : `https://a16z.com/category/ai/page/${index + 1}/`
+        )
       ];
 
       let discovered = 0;
       let ingested = 0;
       let analyzed = 0;
       let published = 0;
-      const limit = options?.limit ?? 8;
+      const limit = options?.limit ?? 300;
       const seen = new Set<string>();
 
       for (const listingUrl of listingUrls) {
@@ -129,17 +130,11 @@ export class ContentService {
           if (!isLikelyEditorialArticle(parsed)) {
             continue;
           }
+          if (!isPublishedWithinPastYear(parsed.publishedAt)) {
+            continue;
+          }
           const article = await this.persistParsedArticle(parsed, articleHtml);
           ingested += 1;
-
-          if (!article.summary) {
-            await this.analyzeArticle(article.id);
-            analyzed += 1;
-            published += 1;
-          } else if (article.reviewState !== "published") {
-            await this.publish("article", article.id, "system@analysis");
-            published += 1;
-          }
         }
 
         if (ingested >= limit) {
@@ -175,27 +170,85 @@ export class ContentService {
       throw new Error(`Article ${articleId} not found`);
     }
 
+    await this.setEntityState("article", articleId, "processing", "system@analysis");
+
     const cleanedPayload = article.cleanedR2Key ? await this.objectStore.get(article.cleanedR2Key) : null;
     const plainText =
       cleanedPayload && cleanedPayload.length > 0
         ? (JSON.parse(cleanedPayload) as ParsedArticle).plainText
         : `${article.sourceTitle}\n${article.summary}\n${article.keyPoints.join("\n")}`;
 
-    const analysis = await this.analysisClient.analyzeArticle({
-      sourceTitle: article.sourceTitle,
-      contentType: article.contentType,
-      publishedAt: article.publishedAt,
-      plainText
-    });
+    try {
+      const analysis = await this.analysisClient.analyzeArticle({
+        sourceTitle: article.sourceTitle,
+        contentType: article.contentType,
+        publishedAt: article.publishedAt,
+        plainText
+      });
 
-    await this.repo.updateArticleAnalysis(articleId, analysis);
-    await this.publish("article", articleId, "system@analysis");
+      await this.repo.updateArticleAnalysis(articleId, analysis);
+      await this.publish("article", articleId, "system@analysis");
+    } catch (error) {
+      await this.setEntityState(
+        "article",
+        articleId,
+        "failed",
+        "system@analysis",
+        error instanceof Error ? error.message : undefined
+      );
+      throw error;
+    }
 
     const updated = await this.repo.getArticleById(articleId);
     if (!updated) {
       throw new Error(`Article ${articleId} not found after analysis`);
     }
     return updated;
+  }
+
+  async processPendingArticles(options?: {
+    limit?: number;
+    rebuildTopics?: boolean;
+    rebuildDigest?: boolean;
+  }): Promise<{ jobId: string; processed: number; published: number; failed: number }> {
+    const job = await this.repo.createJob("article-processing");
+
+    try {
+      const limit = options?.limit ?? 3;
+      const candidates = (await this.repo.listArticles())
+        .filter((article) => article.reviewState === "ingested" || article.reviewState === "failed" || article.reviewState === "draft")
+        .slice(0, limit);
+
+      let processed = 0;
+      let published = 0;
+      let failed = 0;
+
+      for (const candidate of candidates) {
+        try {
+          const updated = await this.analyzeArticle(candidate.id);
+          processed += 1;
+          if (updated.reviewState === "published") {
+            published += 1;
+          }
+        } catch {
+          failed += 1;
+        }
+      }
+
+      if ((options?.rebuildTopics ?? true) && published > 0) {
+        await this.rebuildAllTopics();
+      }
+
+      if ((options?.rebuildDigest ?? true) && published > 0) {
+        await this.generateWeeklyDigest();
+      }
+
+      await this.repo.completeJob(job.id, "succeeded", { processed, published, failed });
+      return { jobId: job.id, processed, published, failed };
+    } catch (error) {
+      await this.repo.completeJob(job.id, "failed", {}, error instanceof Error ? error.message : "Unknown error");
+      throw error;
+    }
   }
 
   async rebuildTopic(topicSlugOrId: string) {
@@ -310,6 +363,22 @@ export class ContentService {
       entityType,
       entityId,
       state: "published",
+      reviewer,
+      note
+    });
+  }
+
+  async setEntityState(
+    entityType: "article" | "topic" | "digest",
+    entityId: string,
+    state: "ingested" | "processing" | "published" | "failed",
+    reviewer: string | null,
+    note?: string
+  ) {
+    return this.repo.setReviewState({
+      entityType,
+      entityId,
+      state,
       reviewer,
       note
     });

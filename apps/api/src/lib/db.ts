@@ -220,7 +220,7 @@ export class MemoryRepository implements ContentRepository {
       publishedAt: article.publishedAt,
       contentType: article.contentType,
       summary: existing?.summary ?? "",
-      reviewState: existing?.reviewState ?? "draft",
+      reviewState: existing?.reviewState ?? "ingested",
       topics: existing?.topics ?? [],
       keyPoints: existing?.keyPoints ?? [],
       keyJudgements: existing?.keyJudgements ?? [],
@@ -263,14 +263,14 @@ export class MemoryRepository implements ContentRepository {
       evidenceLinks: analysis.evidenceLinks,
       topics: analysis.candidateTopics,
       relatedTopics,
-      reviewState: "reviewing"
+      reviewState: existing.reviewState
     };
     this.articles.set(articleId, updated);
     this.reviewStates.set(`article:${articleId}`, {
       id: crypto.randomUUID(),
       entityType: "article",
       entityId: articleId,
-      state: "reviewing",
+      state: updated.reviewState,
       reviewer: null,
       reviewNote: null,
       updatedAt: nowIso()
@@ -456,8 +456,8 @@ export class MemoryRepository implements ContentRepository {
     const articles = [...this.articles.values()];
     const jobs = [...this.jobs.values()];
     return {
-      draftArticles: articles.filter((item) => item.reviewState === "draft").length,
-      reviewingArticles: articles.filter((item) => item.reviewState === "reviewing").length,
+      draftArticles: articles.filter((item) => item.reviewState === "ingested" || item.reviewState === "draft").length,
+      reviewingArticles: articles.filter((item) => item.reviewState === "processing" || item.reviewState === "reviewing").length,
       publishedArticles: articles.filter((item) => item.reviewState === "published").length,
       topicsInReview: [...this.topics.values()].filter((item) => item.reviewState === "reviewing").length,
       pendingJobs: jobs.filter((item) => item.status === "running" || item.status === "pending").length,
@@ -612,7 +612,7 @@ class D1Repository implements ContentRepository {
           COALESCE((SELECT key_points_json FROM articles WHERE id = ?), '[]'),
           COALESCE((SELECT key_judgements_json FROM articles WHERE id = ?), '[]'),
           COALESCE((SELECT candidate_topics_json FROM articles WHERE id = ?), '[]'),
-          ?, ?, COALESCE((SELECT review_state FROM articles WHERE id = ?), 'draft'),
+          ?, ?, COALESCE((SELECT review_state FROM articles WHERE id = ?), 'ingested'),
           COALESCE((SELECT published_on FROM articles WHERE id = ?), NULL),
           COALESCE((SELECT created_at FROM articles WHERE id = ?), ?), ?)`
       )
@@ -649,7 +649,7 @@ class D1Repository implements ContentRepository {
     await this.db
       .prepare(
         `UPDATE articles
-         SET zh_title = ?, summary = ?, key_points_json = ?, key_judgements_json = ?, candidate_topics_json = ?, review_state = 'reviewing', updated_at = ?
+         SET zh_title = ?, summary = ?, key_points_json = ?, key_judgements_json = ?, candidate_topics_json = ?, updated_at = ?
          WHERE id = ?`
       )
       .bind(
@@ -911,8 +911,8 @@ class D1Repository implements ContentRepository {
   async getAdminOverview(): Promise<AdminOverview> {
     const [articles, topics, jobs] = await Promise.all([this.listArticles(), this.listTopics(), this.listJobs()]);
     return {
-      draftArticles: articles.filter((item) => item.reviewState === "draft").length,
-      reviewingArticles: articles.filter((item) => item.reviewState === "reviewing").length,
+      draftArticles: articles.filter((item) => item.reviewState === "ingested" || item.reviewState === "draft").length,
+      reviewingArticles: articles.filter((item) => item.reviewState === "processing" || item.reviewState === "reviewing").length,
       publishedArticles: articles.filter((item) => item.reviewState === "published").length,
       topicsInReview: topics.filter((item) => item.reviewState === "reviewing").length,
       pendingJobs: jobs.filter((item) => item.status === "pending" || item.status === "running").length,
@@ -988,7 +988,6 @@ export function createRepository(env: Env): ContentRepository {
 
   if (!sharedMemoryRepository) {
     sharedMemoryRepository = new MemoryRepository();
-    void sharedMemoryRepository.seedFixtures();
   }
 
   return sharedMemoryRepository;

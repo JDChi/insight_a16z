@@ -50,7 +50,6 @@ internalRoutes.post("/ingestion/run", async (c) => {
   return c.json(
     await service.runWeeklyIngestion({
       limit: typeof body.limit === "number" ? body.limit : undefined,
-      autoPublish: body.autoPublish === true,
       rebuildTopics: body.rebuildTopics === true,
       rebuildDigest: body.rebuildDigest === true,
       resetBeforeImport: body.resetBeforeImport === true
@@ -62,6 +61,18 @@ internalRoutes.post("/reset", async (c) => {
   const service = createContentService(c.env);
   await service.clearAllContent();
   return c.json({ ok: true });
+});
+
+internalRoutes.post("/analysis/articles/process", async (c) => {
+  const service = createContentService(c.env);
+  const body = await c.req.json().catch(() => ({}));
+  return c.json(
+    await service.processPendingArticles({
+      limit: typeof body.limit === "number" ? body.limit : undefined,
+      rebuildTopics: body.rebuildTopics !== false,
+      rebuildDigest: body.rebuildDigest !== false
+    })
+  );
 });
 
 internalRoutes.post("/analysis/articles/:id", async (c) => {
@@ -100,4 +111,17 @@ internalRoutes.post("/publish/:entityType/:id", async (c) => {
   const service = createContentService(c.env);
   const identity = getAdminIdentity(c);
   return c.json(await service.publish(c.req.param("entityType") as "article" | "topic" | "digest", c.req.param("id"), identity?.email ?? null));
+});
+
+internalRoutes.post("/state/:entityType/:id/:state", async (c) => {
+  const service = createContentService(c.env);
+  const identity = getAdminIdentity(c);
+  return c.json(
+    await service.setEntityState(
+      c.req.param("entityType") as "article" | "topic" | "digest",
+      c.req.param("id"),
+      c.req.param("state") as "ingested" | "processing" | "published" | "failed",
+      identity?.email ?? null
+    )
+  );
 });

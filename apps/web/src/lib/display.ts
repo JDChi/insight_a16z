@@ -20,6 +20,8 @@ export function toChineseTopicName(value: string): string {
 
 export function toChineseReviewState(state: string): string {
   if (state === "draft") return "草稿";
+  if (state === "ingested") return "待分析";
+  if (state === "processing") return "分析中";
   if (state === "reviewing") return "待审核";
   if (state === "approved") return "已通过";
   if (state === "published") return "已发布";
@@ -33,6 +35,7 @@ export function toChineseReviewState(state: string): string {
 
 export function toChineseJobType(jobType: string): string {
   if (jobType === "weekly-ingestion") return "每周采集";
+  if (jobType === "article-processing") return "文章处理";
   if (jobType === "topic-rebuild") return "专题重建";
   if (jobType === "digest-generation") return "周报生成";
   return jobType;

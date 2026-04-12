@@ -18,11 +18,7 @@ const articles = await getAdminArticles();
           id: article.id,
           title: article.zhTitle,
           meta: `${toChineseContentType(article.contentType)} · ${article.publishedAt}`,
-          status: article.reviewState,
-          publishAction: {
-            entityType: "article",
-            entityId: article.id
-          }
+          status: article.reviewState
         }))}
       />
     </AdminShell>

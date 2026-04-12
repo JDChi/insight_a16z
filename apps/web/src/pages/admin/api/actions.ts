@@ -23,11 +23,15 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     } else if (kind === "ingest-live") {
       path = "/internal/ingestion/run";
       body = JSON.stringify({
-        limit: 6,
-        autoPublish: true,
-        rebuildTopics: true,
-        rebuildDigest: true,
+        limit: 300,
         resetBeforeImport: true
+      });
+    } else if (kind === "process-pending") {
+      path = "/internal/analysis/articles/process";
+      body = JSON.stringify({
+        limit: 3,
+        rebuildTopics: true,
+        rebuildDigest: true
       });
     } else if (kind === "rebuild-topics") {
       path = "/internal/analysis/topics";

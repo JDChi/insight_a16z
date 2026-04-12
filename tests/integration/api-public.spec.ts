@@ -24,4 +24,13 @@ describe("public API", () => {
     expect(json.zhTitle).toContain("AI 伴侣");
     expect(json.evidenceLinks.length).toBeGreaterThan(0);
   });
+
+  it("does not seed fixture content when explicitly disabled", async () => {
+    const app = createApp();
+    const response = await app.request("/api/articles", {}, { AUTH_MODE: "test", SEED_FIXTURES: "false" });
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json).toEqual([]);
+  });
 });

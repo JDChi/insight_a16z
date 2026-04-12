@@ -4,6 +4,8 @@ export type ContentType = (typeof contentTypes)[number];
 
 export const reviewStates = [
   "draft",
+  "ingested",
+  "processing",
   "reviewing",
   "approved",
   "rejected",

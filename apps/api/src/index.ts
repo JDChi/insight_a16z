@@ -25,7 +25,9 @@ export function createApp() {
 
   app.get("/health", async (c) => {
     const service = createContentService(c.env);
-    await service.seedFixtures();
+    if (c.env.SEED_FIXTURES !== "false") {
+      await service.seedFixtures();
+    }
     return c.json({ status: "ok" });
   });
 

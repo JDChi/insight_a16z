@@ -19,11 +19,64 @@ const ignoredTitles = new Set([
   "Share"
 ]);
 
+const titleSuffixPattern = /\s*\|\s*(a16z|Andreessen Horowitz)\s*$/i;
+
 function normalizeContentType(raw: string | undefined): "Article" | "Investment News" | null {
   const value = (raw ?? "").trim().toLowerCase();
   if (value.includes("investment")) return "Investment News";
   if (value.includes("article")) return "Article";
   return null;
+}
+
+function normalizeSourceTitle(raw: string | undefined): string {
+  return (raw ?? "").trim().replace(titleSuffixPattern, "").trim();
+}
+
+function extractPublishedAtFromStructuredData($: cheerio.CheerioAPI): string | undefined {
+  const scripts = $("script[type='application/ld+json']")
+    .map((_, element) => $(element).text().trim())
+    .get()
+    .filter(Boolean);
+
+  const findDate = (value: unknown): string | undefined => {
+    if (!value || typeof value !== "object") return undefined;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const date = findDate(item);
+        if (date) return date;
+      }
+      return undefined;
+    }
+
+    const record = value as Record<string, unknown>;
+    const type = record["@type"];
+    const matchesArticleType =
+      typeof type === "string"
+        ? /article$/i.test(type)
+        : Array.isArray(type) && type.some((entry) => typeof entry === "string" && /article$/i.test(entry));
+    if (matchesArticleType && typeof record.datePublished === "string" && record.datePublished.trim().length > 0) {
+      return record.datePublished;
+    }
+
+    for (const nested of Object.values(record)) {
+      const date = findDate(nested);
+      if (date) return date;
+    }
+
+    return undefined;
+  };
+
+  for (const script of scripts) {
+    try {
+      const parsed = JSON.parse(script) as unknown;
+      const publishedAt = findDate(parsed);
+      if (publishedAt) return publishedAt;
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
 }
 
 export function collectArticleCandidates(html: string, baseUrl = "https://a16z.com"): IngestionCandidate[] {
@@ -62,10 +115,15 @@ export function collectArticleCandidates(html: string, baseUrl = "https://a16z.c
     const normalizedTypeText = typeText.trim().toLowerCase();
     if (normalizedTypeText.includes("podcast") || normalizedTypeText.includes("video")) return;
     const publishedAt = root.find("time").attr("datetime") ?? root.find("time").text().trim() ?? undefined;
+    const normalizedType = normalizeContentType(typeText);
+    const isFeedItem = root.is("[data-feed-item]") || root.parents("[data-feed-item]").length > 0;
+    const hasArticleContext = Boolean(publishedAt) || Boolean(normalizedType) || isFeedItem;
+    if (!hasArticleContext && !pathname.startsWith("/announcement/")) return;
+
     const contentType =
       pathname.startsWith("/announcement/") || /^investing in/i.test(title)
         ? "Investment News"
-        : normalizeContentType(typeText) ?? "Article";
+        : normalizedType ?? "Article";
 
     candidates.set(url, {
       url,
@@ -87,14 +145,16 @@ export function filterTargetContentType(candidates: IngestionCandidate[]): Inges
 export function parseArticleDocument(html: string, sourceUrl: string): ParsedArticle {
   const $ = cheerio.load(html);
   const pathname = new URL(sourceUrl).pathname;
-  const sourceTitle =
+  const sourceTitle = normalizeSourceTitle(
     $("meta[property='og:title']").attr("content")?.trim() ??
-    $("h1").first().text().trim() ??
-    $("title").text().trim();
+      $("h1").first().text().trim() ??
+      $("title").text().trim()
+  );
 
   const canonicalUrl = $("link[rel='canonical']").attr("href") ?? sourceUrl;
   const publishedAt =
     $("meta[property='article:published_time']").attr("content") ??
+    extractPublishedAtFromStructuredData($) ??
     $("time").first().attr("datetime") ??
     $("time").first().text().trim() ??
     new Date().toISOString().slice(0, 10);
@@ -143,6 +203,14 @@ export async function fetchText(url: string): Promise<string> {
 export function isLikelyEditorialArticle(parsed: ParsedArticle): boolean {
   if (!parsed.publishedAt || parsed.publishedAt.trim().length === 0) return false;
   if (parsed.plainText.trim().length < 280) return false;
-  if (/\|\s*(a16z|Andreessen Horowitz)$/i.test(parsed.sourceTitle)) return false;
   return true;
+}
+
+export function isPublishedWithinPastYear(publishedAt: string, referenceDate = new Date()): boolean {
+  const timestamp = new Date(publishedAt).getTime();
+  if (Number.isNaN(timestamp)) return false;
+
+  const cutoff = new Date(referenceDate);
+  cutoff.setFullYear(cutoff.getFullYear() - 1);
+  return timestamp >= cutoff.getTime();
 }

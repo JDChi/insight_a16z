@@ -57,7 +57,7 @@ export interface ListFilters {
 export interface ReviewActionInput {
   entityType: "article" | "topic" | "digest";
   entityId: string;
-  state: "approved" | "rejected" | "published";
+  state: "ingested" | "processing" | "approved" | "rejected" | "published" | "failed";
   reviewer: string | null;
   note?: string;
 }

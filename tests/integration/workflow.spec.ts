@@ -12,11 +12,27 @@ describe("content workflow", () => {
 
     const articles = await service.listAllArticles();
     const target = articles[0];
-    await service.reject("article", target.id, "admin@local.test");
+    await service.setEntityState("article", target.id, "ingested", "admin@local.test");
 
     const updated = await service.analyzeArticle(target.id);
 
     expect(updated.reviewState).toBe("published");
+  });
+
+  it("processes queued ingested articles and republishes them", async () => {
+    const service = createContentService({ AUTH_MODE: "test" });
+    await service.seedFixtures();
+
+    const articles = await service.listAllArticles();
+    const target = articles[0];
+    await service.setEntityState("article", target.id, "ingested", "admin@local.test");
+
+    const result = await service.processPendingArticles({ limit: 1 });
+    const updated = await service.getArticle(target.slug);
+
+    expect(result.processed).toBe(1);
+    expect(result.published).toBe(1);
+    expect(updated?.reviewState).toBe("published");
   });
 
   it("rebuilds topics and weekly digests from analyzed articles", async () => {
