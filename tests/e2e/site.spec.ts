@@ -20,3 +20,9 @@ test("article and topic pages render structured content", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Agent 工作流" })).toBeVisible();
   await expect(page.getByText("趋势推演")).toBeVisible();
 });
+
+test("admin list no longer shows manual approve actions", async ({ page }) => {
+  await page.goto("/admin/articles");
+
+  await expect(page.getByRole("button", { name: "通过" })).toHaveCount(0);
+});

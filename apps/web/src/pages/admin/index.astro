@@ -29,9 +29,9 @@ const jobs = await getJobs();
       </div>
       <div class="grid-two">
         <article class="panel metric"><strong>{overview.draftArticles}</strong><span>草稿文章</span></article>
-        <article class="panel metric"><strong>{overview.reviewingArticles}</strong><span>待审文章</span></article>
+        <article class="panel metric"><strong>{overview.reviewingArticles}</strong><span>处理中文章</span></article>
         <article class="panel metric"><strong>{overview.publishedArticles}</strong><span>已发布文章</span></article>
-        <article class="panel metric"><strong>{overview.topicsInReview}</strong><span>待审专题</span></article>
+        <article class="panel metric"><strong>{overview.topicsInReview}</strong><span>处理中专题</span></article>
       </div>
       <TaskTable jobs={jobs} />
     </AdminShell>

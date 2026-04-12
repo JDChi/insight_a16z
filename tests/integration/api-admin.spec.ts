@@ -18,7 +18,7 @@ describe("admin API", () => {
     expect(response.status).toBe(401);
   });
 
-  it("allows admin review and publish flow", async () => {
+  it("publishes article immediately after analysis completes", async () => {
     const app = createApp();
     const headers = {
       "cf-access-authenticated-user-email": "admin@local.test"
@@ -26,15 +26,15 @@ describe("admin API", () => {
 
     const listBefore = await app.request("/internal/articles", { headers }, adminEnv);
     const articles = await listBefore.json();
-    const target = articles.find((item: { reviewState: string }) => item.reviewState !== "published");
+    const target = articles.find((item: { reviewState: string }) => item.reviewState === "published");
 
     expect(target).toBeTruthy();
 
-    const approveResponse = await app.request(`/internal/review/article/${target.id}/approve`, { method: "POST", headers }, adminEnv);
-    expect(approveResponse.status).toBe(200);
+    const rejectResponse = await app.request(`/internal/review/article/${target.id}/reject`, { method: "POST", headers }, adminEnv);
+    expect(rejectResponse.status).toBe(200);
 
-    const publishResponse = await app.request(`/internal/publish/article/${target.id}`, { method: "POST", headers }, adminEnv);
-    expect(publishResponse.status).toBe(200);
+    const analysisResponse = await app.request(`/internal/analysis/articles/${target.id}`, { method: "POST", headers }, adminEnv);
+    expect(analysisResponse.status).toBe(200);
 
     const listAfter = await app.request("/internal/articles", { headers }, adminEnv);
     const updatedArticles = await listAfter.json();

@@ -19,10 +19,6 @@ const articles = await getAdminArticles();
           title: article.zhTitle,
           meta: `${toChineseContentType(article.contentType)} · ${article.publishedAt}`,
           status: article.reviewState,
-          approveAction: {
-            entityType: "article",
-            entityId: article.id
-          },
           publishAction: {
             entityType: "article",
             entityId: article.id

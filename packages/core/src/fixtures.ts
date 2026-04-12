@@ -64,7 +64,7 @@ export const sampleArticles: ArticleDetail[] = [
     contentType: "Investment News",
     summary:
       "文章通过投资案例说明，企业正在把 AI 从问答助手升级为可执行任务的工作流系统，关键在于任务边界、审批与可观测性。",
-    reviewState: "reviewing",
+    reviewState: "published",
     topics: ["agent-workflows", "enterprise-ai"],
     keyPoints: [
       "企业采用的重点是任务闭环，而不是单点自动化。",
@@ -163,7 +163,7 @@ export const sampleTopics: TopicDetail[] = [
     intro: "围绕 AI 原生消费产品的分发、留存与产品形态变化。",
     articleCount: 4,
     updatedAt: "2026-04-07",
-    reviewState: "approved",
+    reviewState: "published",
     currentConsensus: [
       "消费级 AI 的竞争重点正在从功能新奇感转向长期留存。",
       "角色设定和持续交互会影响产品差异化。"
@@ -299,10 +299,10 @@ export const sampleJobs: IngestionJob[] = [
 ];
 
 export const sampleOverview: AdminOverview = {
-  draftArticles: 2,
-  reviewingArticles: 4,
-  publishedArticles: 18,
-  topicsInReview: 2,
+  draftArticles: 0,
+  reviewingArticles: 0,
+  publishedArticles: 20,
+  topicsInReview: 0,
   pendingJobs: 1,
   failedJobs: 1
 };

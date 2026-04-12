@@ -7,10 +7,6 @@ interface Props {
     title: string;
     meta: string;
     status: string;
-    approveAction?: {
-      entityType: string;
-      entityId: string;
-    };
     publishAction?: {
       entityType: string;
       entityId: string;
@@ -39,14 +35,6 @@ const { rows } = Astro.props;
           <td><StatusBadge status={row.status} /></td>
           <td>
             <div class="actions">
-              {row.approveAction && (
-                <form method="post" action="/admin/api/actions">
-                  <input type="hidden" name="kind" value="approve" />
-                  <input type="hidden" name="entityType" value={row.approveAction.entityType} />
-                  <input type="hidden" name="entityId" value={row.approveAction.entityId} />
-                  <button type="submit">通过</button>
-                </form>
-              )}
               {row.publishAction && (
                 <form method="post" action="/admin/api/actions">
                   <input type="hidden" name="kind" value="publish" />

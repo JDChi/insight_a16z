@@ -101,7 +101,6 @@ export class ContentService {
       let analyzed = 0;
       let published = 0;
       const limit = options?.limit ?? 8;
-      const autoPublish = options?.autoPublish ?? false;
       const seen = new Set<string>();
 
       for (const listingUrl of listingUrls) {
@@ -136,11 +135,9 @@ export class ContentService {
           if (!article.summary) {
             await this.analyzeArticle(article.id);
             analyzed += 1;
-          }
-
-          if (autoPublish) {
-            await this.approve("article", article.id, "system@local");
-            await this.publish("article", article.id, "system@local");
+            published += 1;
+          } else if (article.reviewState !== "published") {
+            await this.publish("article", article.id, "system@analysis");
             published += 1;
           }
         }
@@ -151,21 +148,11 @@ export class ContentService {
       }
 
       if (options?.rebuildTopics) {
-        const topics = await this.rebuildAllTopics();
-        if (autoPublish) {
-          for (const topic of topics) {
-            await this.approve("topic", topic.id, "system@local");
-            await this.publish("topic", topic.id, "system@local");
-          }
-        }
+        await this.rebuildAllTopics();
       }
 
       if (options?.rebuildDigest) {
-        const digest = await this.generateWeeklyDigest();
-        if (autoPublish) {
-          await this.approve("digest", digest.id, "system@local");
-          await this.publish("digest", digest.id, "system@local");
-        }
+        await this.generateWeeklyDigest();
       }
 
       await this.repo.completeJob(job.id, "succeeded", {
@@ -201,7 +188,14 @@ export class ContentService {
       plainText
     });
 
-    return this.repo.updateArticleAnalysis(articleId, analysis);
+    await this.repo.updateArticleAnalysis(articleId, analysis);
+    await this.publish("article", articleId, "system@analysis");
+
+    const updated = await this.repo.getArticleById(articleId);
+    if (!updated) {
+      throw new Error(`Article ${articleId} not found after analysis`);
+    }
+    return updated;
   }
 
   async rebuildTopic(topicSlugOrId: string) {
@@ -220,11 +214,17 @@ export class ContentService {
 
     const topicSlug = slugFromTopicName(topicSlugOrId);
     const analysis = await this.analysisClient.analyzeTopic(topicSlug, supportingArticles);
-    return this.repo.upsertTopicAnalysis({
+    const stored = await this.repo.upsertTopicAnalysis({
       slug: topicSlug,
       analysis,
       supportingArticles
     });
+    await this.publish("topic", stored.id, "system@analysis");
+    const updated = await this.repo.getTopicBySlug(topicSlug);
+    if (!updated) {
+      throw new Error(`Topic ${topicSlug} not found after analysis`);
+    }
+    return updated;
   }
 
   async rebuildAllTopics() {
@@ -247,7 +247,11 @@ export class ContentService {
         analysis,
         supportingArticles: topicArticles
       });
-      topics.push(stored);
+      await this.publish("topic", stored.id, "system@analysis");
+      const updated = await this.repo.getTopicBySlug(topicSlug);
+      if (updated) {
+        topics.push(updated);
+      }
     }
 
     return topics;
@@ -267,12 +271,18 @@ export class ContentService {
       articles: digestArticles
     });
 
-    return this.repo.upsertDigestAnalysis({
+    const digest = await this.repo.upsertDigestAnalysis({
       slug: `${weekStart}`,
       weekStart,
       weekEnd,
       analysis
     });
+    await this.publish("digest", digest.id, "system@analysis");
+    const updated = await this.repo.getDigestBySlug(`${weekStart}`);
+    if (!updated) {
+      throw new Error(`Digest ${weekStart} not found after analysis`);
+    }
+    return updated;
   }
 
   async approve(entityType: "article" | "topic" | "digest", entityId: string, reviewer: string | null, note?: string) {
