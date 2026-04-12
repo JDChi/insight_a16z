@@ -12,15 +12,39 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   const entityId = String(data.get("entityId") ?? "");
 
   if (mode === "api") {
-    const path =
-      kind === "approve"
-        ? `/internal/review/${entityType}/${entityId}/approve`
-        : `/internal/publish/${entityType}/${entityId}`;
+    let path = "";
+    let method: "POST" = "POST";
+    let body: string | undefined;
 
-    await fetch(`${apiBase}${path}`, {
-      method: "POST",
-      headers: buildAdminHeaders()
-    });
+    if (kind === "approve") {
+      path = `/internal/review/${entityType}/${entityId}/approve`;
+    } else if (kind === "publish") {
+      path = `/internal/publish/${entityType}/${entityId}`;
+    } else if (kind === "ingest-live") {
+      path = "/internal/ingestion/run";
+      body = JSON.stringify({
+        limit: 6,
+        autoPublish: true,
+        rebuildTopics: true,
+        rebuildDigest: true,
+        resetBeforeImport: true
+      });
+    } else if (kind === "rebuild-topics") {
+      path = "/internal/analysis/topics";
+    } else if (kind === "rebuild-digest") {
+      path = "/internal/analysis/digests/run";
+    }
+
+    if (path) {
+      await fetch(`${apiBase}${path}`, {
+        method,
+        headers: {
+          ...buildAdminHeaders(),
+          ...(body ? { "content-type": "application/json" } : {})
+        },
+        body
+      });
+    }
   }
 
   return redirect(request.headers.get("referer") ?? "/admin", 303);

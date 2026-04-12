@@ -85,6 +85,10 @@ export class MemoryObjectStore implements ObjectStore {
   async get(key: string): Promise<string | null> {
     return this.objects.get(key) ?? null;
   }
+
+  clear(): void {
+    this.objects.clear();
+  }
 }
 
 let sharedMemoryRepository: MemoryRepository | null = null;
@@ -165,6 +169,14 @@ export class MemoryRepository implements ContentRepository {
     for (const job of sampleJobs) {
       this.jobs.set(job.id, job);
     }
+  }
+
+  async clearAll(): Promise<void> {
+    this.articles.clear();
+    this.topics.clear();
+    this.digests.clear();
+    this.reviewStates.clear();
+    this.jobs.clear();
   }
 
   async listArticles(filters: ListFilters = {}): Promise<ArticleSummary[]> {
@@ -538,6 +550,24 @@ class D1Repository implements ContentRepository {
           nowIso()
         )
         .run();
+    }
+  }
+
+  async clearAll(): Promise<void> {
+    const statements = [
+      "DELETE FROM article_topic_relations",
+      "DELETE FROM evidence_blocks",
+      "DELETE FROM trend_predictions",
+      "DELETE FROM review_states",
+      "DELETE FROM analysis_runs",
+      "DELETE FROM ingestion_jobs",
+      "DELETE FROM weekly_digests",
+      "DELETE FROM topics",
+      "DELETE FROM articles"
+    ];
+
+    for (const statement of statements) {
+      await this.db.prepare(statement).run();
     }
   }
 
@@ -981,4 +1011,8 @@ export const sampleAdminOverview = sampleOverview;
 export function resetMemoryStores(): void {
   sharedMemoryRepository = null;
   sharedMemoryObjectStore = null;
+}
+
+export function clearMemoryObjectStore(): void {
+  sharedMemoryObjectStore?.clear();
 }

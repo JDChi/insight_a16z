@@ -227,7 +227,7 @@ export const sampleDigests: DigestDetail[] = [
     topSignals: [
       "企业 Agent 的讨论继续从原型转向生产工作流。",
       "消费级 AI 的留存逻辑越来越像关系型产品。",
-      "Investment News 正在为主题演化提供直接投资印证。"
+      "投资动态正在为主题演化提供直接投资印证。"
     ],
     topicMovements: [
       "Agent 工作流专题的证据强度继续上升。",
@@ -291,7 +291,7 @@ export const sampleJobs: IngestionJob[] = [
     status: "failed",
     startedAt: "2026-04-06T01:10:00.000Z",
     endedAt: "2026-04-06T01:13:00.000Z",
-    errorMessage: "LLM output schema validation failed",
+    errorMessage: "模型输出未通过结构校验",
     stats: {
       topicsAttempted: 3
     }

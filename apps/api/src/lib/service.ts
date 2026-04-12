@@ -8,9 +8,15 @@ import type {
 } from "@insight-a16z/core";
 
 import { createAnalysisClient, slugFromTopicName } from "./analysis";
-import { createObjectStore, createRepository } from "./db";
+import { clearMemoryObjectStore, createObjectStore, createRepository } from "./db";
 import type { Env } from "./env";
-import { collectArticleCandidates, fetchText, filterTargetContentType, parseArticleDocument } from "./ingestion";
+import {
+  collectArticleCandidates,
+  fetchText,
+  filterTargetContentType,
+  isLikelyEditorialArticle,
+  parseArticleDocument
+} from "./ingestion";
 import type { ContentRepository, ObjectStore, ParsedArticle, StoredArticle } from "./types";
 import { endOfWeek, nowIso, startOfWeek, stringifyJson, unique } from "./utils";
 
@@ -23,6 +29,11 @@ export class ContentService {
 
   async seedFixtures(): Promise<void> {
     await this.repo.seedFixtures();
+  }
+
+  async clearAllContent(): Promise<void> {
+    await this.repo.clearAll();
+    clearMemoryObjectStore();
   }
 
   async listPublishedArticles(): Promise<ArticleSummary[]> {
@@ -65,11 +76,22 @@ export class ContentService {
     return this.repo.getAdminOverview();
   }
 
-  async runWeeklyIngestion(): Promise<{ jobId: string; ingested: number; analyzed: number }> {
+  async runWeeklyIngestion(options?: {
+    limit?: number;
+    autoPublish?: boolean;
+    rebuildTopics?: boolean;
+    rebuildDigest?: boolean;
+    resetBeforeImport?: boolean;
+  }): Promise<{ jobId: string; ingested: number; analyzed: number; published: number }> {
     const job = await this.repo.createJob("weekly-ingestion");
 
     try {
+      if (options?.resetBeforeImport) {
+        await this.clearAllContent();
+      }
+
       const listingUrls = [
+        "https://a16z.com/ai/",
         "https://a16z.com/category/ai/",
         "https://a16z.com/category/ai/page/2/"
       ];
@@ -77,15 +99,37 @@ export class ContentService {
       let discovered = 0;
       let ingested = 0;
       let analyzed = 0;
+      let published = 0;
+      const limit = options?.limit ?? 8;
+      const autoPublish = options?.autoPublish ?? false;
+      const seen = new Set<string>();
 
       for (const listingUrl of listingUrls) {
-        const html = await fetchText(listingUrl);
+        let html = "";
+        try {
+          html = await fetchText(listingUrl);
+        } catch {
+          continue;
+        }
         const candidates = filterTargetContentType(collectArticleCandidates(html));
         discovered += candidates.length;
 
-        for (const candidate of candidates.slice(0, 10)) {
-          const articleHtml = await fetchText(candidate.url);
+        for (const candidate of candidates) {
+          if (seen.has(candidate.url)) continue;
+          seen.add(candidate.url);
+          if (ingested >= limit) break;
+
+          let articleHtml = "";
+          try {
+            articleHtml = await fetchText(candidate.url);
+          } catch {
+            continue;
+          }
+
           const parsed = parseArticleDocument(articleHtml, candidate.url);
+          if (!isLikelyEditorialArticle(parsed)) {
+            continue;
+          }
           const article = await this.persistParsedArticle(parsed, articleHtml);
           ingested += 1;
 
@@ -93,16 +137,45 @@ export class ContentService {
             await this.analyzeArticle(article.id);
             analyzed += 1;
           }
+
+          if (autoPublish) {
+            await this.approve("article", article.id, "system@local");
+            await this.publish("article", article.id, "system@local");
+            published += 1;
+          }
+        }
+
+        if (ingested >= limit) {
+          break;
+        }
+      }
+
+      if (options?.rebuildTopics) {
+        const topics = await this.rebuildAllTopics();
+        if (autoPublish) {
+          for (const topic of topics) {
+            await this.approve("topic", topic.id, "system@local");
+            await this.publish("topic", topic.id, "system@local");
+          }
+        }
+      }
+
+      if (options?.rebuildDigest) {
+        const digest = await this.generateWeeklyDigest();
+        if (autoPublish) {
+          await this.approve("digest", digest.id, "system@local");
+          await this.publish("digest", digest.id, "system@local");
         }
       }
 
       await this.repo.completeJob(job.id, "succeeded", {
         discovered,
         ingested,
-        analyzed
+        analyzed,
+        published
       });
 
-      return { jobId: job.id, ingested, analyzed };
+      return { jobId: job.id, ingested, analyzed, published };
     } catch (error) {
       await this.repo.completeJob(job.id, "failed", {}, error instanceof Error ? error.message : "Unknown error");
       throw error;

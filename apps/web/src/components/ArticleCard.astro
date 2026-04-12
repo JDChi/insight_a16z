@@ -1,4 +1,6 @@
 ---
+import { toChineseContentType, toChineseTopicName } from "../lib/display";
+
 interface Props {
   article: {
     slug: string;
@@ -15,14 +17,14 @@ const { article } = Astro.props;
 
 <article class="card panel">
   <div class="meta">
-    <span>{article.contentType}</span>
+    <span>{toChineseContentType(article.contentType)}</span>
     <span>{article.publishedAt}</span>
   </div>
   <h3><a href={`/articles/${article.slug}`}>{article.zhTitle}</a></h3>
   <p>{article.summary}</p>
   <div class="tags">
     {article.topics.map((topic) => (
-      <span>{topic}</span>
+      <span>{toChineseTopicName(topic)}</span>
     ))}
   </div>
 </article>

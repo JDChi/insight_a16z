@@ -12,7 +12,7 @@ const { digest } = Astro.props;
 ---
 
 <article class="digest-card panel">
-  <div class="eyebrow">Weekly Digest</div>
+  <div class="eyebrow">每周周报</div>
   <h3><a href={`/digests/${digest.slug}`}>{digest.title}</a></h3>
   <p>{digest.weekStart} - {digest.weekEnd}</p>
 </article>

@@ -9,13 +9,13 @@ const { title, summary, signals } = Astro.props;
 ---
 
 <section class="hero panel">
-  <div class="eyebrow">Weekly Signals</div>
+  <div class="eyebrow">本周最重要洞察</div>
   <h1>{title}</h1>
   <p class="hero-copy">{summary}</p>
   <div class="signal-grid">
     {signals.map((signal) => (
       <article class="signal-card">
-        <span>Signal</span>
+        <span>关键信号</span>
         <p>{signal}</p>
       </article>
     ))}

@@ -16,7 +16,7 @@ const hero = home.leadDigest;
     {hero && <HeroPanel title={hero.title} summary="把 a16z 最新 AI 文章整理成中文专题、趋势与证据链。" signals={home.articles.slice(0, 3).map((item) => item.summary)} />}
 
     <section>
-      <SectionHeading eyebrow="Latest" title="最新文章" description="所有已发布文章都转成中文结构化卡片。" href="/articles" />
+      <SectionHeading eyebrow="最新内容" title="最新文章" description="所有已发布文章都转成中文结构化卡片。" href="/articles" />
       <div class="grid-two">
         {home.articles.map((article) => (
           <ArticleCard article={article} />
@@ -25,7 +25,7 @@ const hero = home.leadDigest;
     </section>
 
     <section>
-      <SectionHeading eyebrow="Investment News" title="最新 Investment News" description="保留投资动态，作为专题演化的重要旁证。" href="/articles" />
+      <SectionHeading eyebrow="投资动态" title="最新投资动态" description="保留投资动态，作为专题演化的重要旁证。" href="/articles" />
       <div class="grid-two">
         {home.investmentNews.map((article) => (
           <ArticleCard article={article} />
@@ -34,7 +34,7 @@ const hero = home.leadDigest;
     </section>
 
     <section>
-      <SectionHeading eyebrow="Topics" title="热门专题" description="将多篇文章归并成同一主题，方便追踪共识和分歧。" href="/topics" />
+      <SectionHeading eyebrow="专题聚合" title="热门专题" description="将多篇文章归并成同一主题，方便追踪共识和分歧。" href="/topics" />
       <div class="grid-two">
         {home.topics.map((topic) => (
           <TopicCard topic={topic} />
@@ -44,7 +44,7 @@ const hero = home.leadDigest;
 
     {hero && (
       <section>
-        <SectionHeading eyebrow="Digest" title="最新周报" description="每周聚合最新信号与趋势变化。" href="/digests" />
+        <SectionHeading eyebrow="每周周报" title="最新周报" description="每周聚合最新信号与趋势变化。" href="/digests" />
         <DigestCard digest={hero} />
       </section>
     )}

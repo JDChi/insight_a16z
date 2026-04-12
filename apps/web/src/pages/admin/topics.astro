@@ -1,6 +1,7 @@
 ---
 import SiteLayout from "../../layouts/SiteLayout.astro";
 import { isAdminRequest } from "../../lib/admin-auth";
+import { toChineseTopicName } from "../../lib/display";
 import { getAdminTopics } from "../../lib/content-source";
 import AdminShell from "./_components/AdminShell.astro";
 import RecordTable from "./_components/RecordTable.astro";
@@ -15,7 +16,7 @@ const topics = await getAdminTopics();
       <RecordTable
         rows={topics.map((topic) => ({
           id: topic.id,
-          title: topic.name,
+          title: toChineseTopicName(topic.name),
           meta: `${topic.articleCount} 篇文章 · 更新于 ${topic.updatedAt}`,
           status: topic.reviewState,
           approveAction: {

@@ -8,8 +8,8 @@ const type = params.get("type") ?? "";
   <input type="search" name="q" value={q} placeholder="搜索文章、专题或判断" />
   <select name="type">
     <option value="">全部类型</option>
-    <option value="Article" selected={type === "Article"}>Article</option>
-    <option value="Investment News" selected={type === "Investment News"}>Investment News</option>
+    <option value="Article" selected={type === "Article"}>文章</option>
+    <option value="Investment News" selected={type === "Investment News"}>投资动态</option>
   </select>
   <button type="submit">筛选</button>
 </form>

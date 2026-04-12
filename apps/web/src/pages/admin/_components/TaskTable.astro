@@ -1,5 +1,6 @@
 ---
 import StatusBadge from "./StatusBadge.astro";
+import { toChineseJobType } from "../../../lib/display";
 
 interface Props {
   jobs: Array<{
@@ -27,7 +28,7 @@ const { jobs } = Astro.props;
     <tbody>
       {jobs.map((job) => (
         <tr>
-          <td>{job.jobType}</td>
+          <td>{toChineseJobType(job.jobType)}</td>
           <td>{job.startedAt}</td>
           <td><StatusBadge status={job.status} /></td>
           <td>{job.errorMessage ?? "—"}</td>

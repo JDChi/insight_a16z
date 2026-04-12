@@ -1,0 +1,22 @@
+import {
+  toChineseConfidence,
+  toChineseContentType,
+  toChineseJobType,
+  toChineseReviewState,
+  toChineseTopicName
+} from "../../apps/web/src/lib/display";
+
+describe("display helpers", () => {
+  it("maps user-facing enums to Chinese labels", () => {
+    expect(toChineseContentType("Article")).toBe("文章");
+    expect(toChineseContentType("Investment News")).toBe("投资动态");
+    expect(toChineseTopicName("enterprise-ai")).toBe("企业 AI");
+    expect(toChineseTopicName("Enterprise Ai")).toBe("企业 AI");
+    expect(toChineseReviewState("published")).toBe("已发布");
+    expect(toChineseReviewState("reviewing")).toBe("待审核");
+    expect(toChineseJobType("weekly-ingestion")).toBe("每周采集");
+    expect(toChineseJobType("topic-rebuild")).toBe("专题重建");
+    expect(toChineseConfidence("high")).toBe("高置信度");
+    expect(toChineseConfidence("medium")).toBe("中置信度");
+  });
+});

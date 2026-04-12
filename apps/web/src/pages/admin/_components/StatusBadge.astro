@@ -1,4 +1,6 @@
 ---
+import { toChineseReviewState } from "../../../lib/display";
+
 interface Props {
   status: string;
 }
@@ -14,7 +16,7 @@ const tone =
         : "default";
 ---
 
-<span class:list={["badge", tone]}>{status}</span>
+<span class:list={["badge", tone]}>{toChineseReviewState(status)}</span>
 
 <style>
   .badge {

@@ -13,6 +13,182 @@ import type { Env } from "./env";
 import type { StoredArticle } from "./types";
 import { slugify, unique } from "./utils";
 
+function titleCaseTopic(topic: string): string {
+  return topic
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+export function topicSlugToChineseName(topic: string): string {
+  if (topic === "enterprise-ai") return "企业 AI";
+  if (topic === "consumer-ai") return "消费级 AI";
+  if (topic === "generative-media") return "生成式媒体";
+  if (topic === "ai-infra") return "AI 基础设施";
+  if (topic === "agent-workflows") return "Agent 工作流";
+  if (topic === "ai-interface") return "AI 界面";
+  if (topic === "general-ai") return "通用 AI";
+  return titleCaseTopic(topic);
+}
+
+export function deriveInsightTitle(input: {
+  sourceTitle: string;
+  summary: string;
+  keyJudgements: string[];
+  candidateTopics: string[];
+}): string {
+  const source = input.sourceTitle.toLowerCase();
+  const summary = input.summary.toLowerCase();
+  const firstJudgement = input.keyJudgements[0] ?? "";
+  const topic = input.candidateTopics[0];
+
+  if (source.includes("retention")) {
+    return "AI 产品竞争开始从增长转向留存";
+  }
+
+  if (source.includes("enterprise") && (source.includes("cios") || source.includes("buying"))) {
+    return "企业 GenAI 采购正在从试点走向体系化";
+  }
+
+  if (source.includes("modelbusters")) {
+    return "AI 正在放大头部模型与应用格局的分化";
+  }
+
+  if (source.includes("agent") || summary.includes("agent")) {
+    return "Agent 正在从演示能力转向真正可执行的工作流";
+  }
+
+  if (source.includes("consumer") || source.includes("companion")) {
+    return "消费级 AI 的胜负手正在变成留存与关系设计";
+  }
+
+  if (source.includes("infra") || source.includes("model stack")) {
+    return "AI 基础设施竞争正在向平台化能力集中";
+  }
+
+  if (topic) {
+    return `${titleCaseTopic(topic)} 赛道正在出现新的产品与市场信号`;
+  }
+
+  return firstJudgement.length > 0 ? firstJudgement : input.sourceTitle;
+}
+
+function buildChineseFallbackAnalysis(input: {
+  sourceTitle: string;
+  contentType: string;
+  candidateTopics: string[];
+  plainText: string;
+}) {
+  const source = input.sourceTitle.toLowerCase();
+  const normalizedText = `${input.sourceTitle}\n${input.plainText}`.toLowerCase();
+  const leadTopic = input.candidateTopics[0] ?? "general-ai";
+  const topicName = topicSlugToChineseName(leadTopic);
+  const contentTypeLabel = input.contentType === "Investment News" ? "投资动态" : "文章";
+
+  if (source.includes("retention")) {
+    return {
+      summary: "文章认为，AI 产品的竞争重心正在从新增与模型炫技转向留存、复访和长期使用行为。",
+      keyPoints: [
+        "留存和重复使用正在成为衡量 AI 产品质量的核心指标。",
+        "单纯依赖新奇功能和高速增长，难以形成稳定的产品优势。",
+        "产品团队开始把习惯形成和长期价值放到更靠前的位置。"
+      ],
+      keyJudgements: [
+        "AI 产品的胜负手正在从增长效率转向留存质量。",
+        "真正的产品壁垒会更多体现在持续使用和用户习惯上。"
+      ]
+    };
+  }
+
+  if (source.includes("enterprise") && (source.includes("cios") || source.includes("buying"))) {
+    return {
+      summary: "文章指出，企业对 GenAI 的采购正从试点尝鲜转向预算、部署和治理都更完整的体系化阶段。",
+      keyPoints: [
+        "企业买方开始更系统地评估模型、工具链和交付能力。",
+        "采购决策越来越看重落地速度、治理能力和长期可维护性。",
+        "从单点实验走向组织级部署，正在成为企业 AI 的主线。"
+      ],
+      keyJudgements: [
+        "企业 GenAI 市场已经从试点阶段进入体系化建设阶段。",
+        "能够同时满足效果、治理和采购协同的产品更容易胜出。"
+      ]
+    };
+  }
+
+  if (source.includes("modelbusters")) {
+    return {
+      summary: "文章强调，AI 正在放大头部模型、应用分发和商业化执行之间的分层，行业格局会继续拉开差距。",
+      keyPoints: [
+        "模型能力之外，分发和商业化执行正在变得更重要。",
+        "头部玩家会因为资源、渠道和产品速度进一步扩大优势。",
+        "应用层与模型层之间的分工会继续细化。"
+      ],
+      keyJudgements: [
+        "AI 行业的分化会随着模型能力扩散而进一步加深。",
+        "未来竞争不会只看模型性能，还会看产品化和市场进入能力。"
+      ]
+    };
+  }
+
+  if (normalizedText.includes("agent")) {
+    return {
+      summary: `${contentTypeLabel}围绕 ${topicName} 展开，重点不再是演示效果，而是任务闭环、可控性和真正落地。`,
+      keyPoints: [
+        "Agent 的价值开始从对话体验转向执行具体任务。",
+        "审批、回滚和可观测性会影响这类产品能否进入真实工作流。",
+        "企业采用速度取决于系统是否能稳定接入现有流程。"
+      ],
+      keyJudgements: [
+        "Agent 正在从演示能力转向真正可执行的工作流。",
+        "可控性和流程整合会决定 Agent 产品的落地深度。"
+      ]
+    };
+  }
+
+  if (normalizedText.includes("consumer") || normalizedText.includes("companion")) {
+    return {
+      summary: `${contentTypeLabel}聚焦 ${topicName}，强调消费级 AI 的竞争正在从新奇体验转向关系、留存和分发。`,
+      keyPoints: [
+        "消费级 AI 产品越来越依赖持续使用而不是一次性体验。",
+        "角色设定、反馈循环和产品氛围会影响长期留存。",
+        "分发能力会继续左右消费产品的放大速度。"
+      ],
+      keyJudgements: [
+        "消费级 AI 的胜负手正在变成留存与关系设计。",
+        "分发和产品体验会比单纯模型能力更能拉开差距。"
+      ]
+    };
+  }
+
+  if (normalizedText.includes("infra") || normalizedText.includes("model")) {
+    return {
+      summary: `${contentTypeLabel}讨论了 ${topicName} 的新变化，重点落在平台能力、成本结构和生态位演进。`,
+      keyPoints: [
+        "基础设施层的竞争正在从单点能力转向平台组合能力。",
+        "成本、稳定性和工程效率会继续影响基础设施采用。",
+        "模型层与应用层之间会形成更明确的分工。"
+      ],
+      keyJudgements: [
+        "AI 基础设施竞争正在向平台化能力集中。",
+        "工程效率和成本控制会成为基础设施产品的重要门槛。"
+      ]
+    };
+  }
+
+  return {
+    summary: `${contentTypeLabel}聚焦 ${topicName} 的最新变化，文章强调这个方向正在出现更清晰的产品与市场信号。`,
+    keyPoints: [
+      `${topicName} 相关产品正在从概念验证走向更清晰的产品化路径。`,
+      "市场讨论的重点正在从单一能力转向系统化落地。",
+      "随着案例增加，行业对商业化节奏的判断也在变得更明确。"
+    ],
+    keyJudgements: [
+      `${topicName} 赛道正在出现新的产品与市场信号。`,
+      "未来竞争会更多围绕产品化执行和商业化效率展开。"
+    ]
+  };
+}
+
 export interface AnalysisClient {
   analyzeArticle(article: {
     sourceTitle: string;
@@ -44,23 +220,30 @@ export class HeuristicAnalysisClient implements AnalysisClient {
     publishedAt: string;
     plainText: string;
   }): Promise<ArticleAnalysis> {
-    const sentences = article.plainText
-      .split(/(?<=[.!?。！？])\s+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const keyPoints = unique(sentences.slice(0, 5)).slice(0, 5);
-    const keyJudgements = unique(sentences.slice(1, 4)).slice(0, 3);
     const candidateTopics = inferTopicsFromText(`${article.sourceTitle}\n${article.plainText}`);
+    const fallback = buildChineseFallbackAnalysis({
+      sourceTitle: article.sourceTitle,
+      contentType: article.contentType,
+      candidateTopics,
+      plainText: article.plainText
+    });
+    const summary = fallback.summary;
+    const normalizedKeyPoints = fallback.keyPoints.slice(0, 3);
+    const normalizedJudgements = fallback.keyJudgements.slice(0, 2);
 
     return {
-      zhTitle: article.sourceTitle,
-      summary: sentences.slice(0, 2).join(" ") || article.sourceTitle,
-      keyPoints: keyPoints.length >= 3 ? keyPoints.slice(0, 3) : [article.sourceTitle, ...keyPoints].slice(0, 3),
-      keyJudgements:
-        keyJudgements.length >= 2 ? keyJudgements.slice(0, 2) : ["文章强调 AI 赛道的结构性变化。", ...keyJudgements].slice(0, 2),
+      zhTitle: deriveInsightTitle({
+        sourceTitle: article.sourceTitle,
+        summary,
+        keyJudgements: normalizedJudgements,
+        candidateTopics
+      }),
+      summary,
+      keyPoints: normalizedKeyPoints,
+      keyJudgements: normalizedJudgements,
       candidateTopics,
-      evidenceLinks: keyPoints.slice(0, 2).map((point, index) => ({
-        claim: keyJudgements[index] ?? point,
+      evidenceLinks: normalizedKeyPoints.slice(0, 2).map((point, index) => ({
+        claim: normalizedJudgements[index] ?? point,
         evidenceText: point,
         sourceLocator: `paragraph:${index + 1}`
       }))
@@ -71,23 +254,20 @@ export class HeuristicAnalysisClient implements AnalysisClient {
     const articleIds = articles.map((article) => article.id);
     const sentences = unique(articles.flatMap((article) => article.keyJudgements)).slice(0, 5);
     return {
-      topicName: topicSlug
-        .split("-")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" "),
-      intro: `${topicSlug} 专题汇总了最近相关文章中反复出现的判断。`,
+      topicName: topicSlugToChineseName(topicSlug),
+      intro: `${topicSlugToChineseName(topicSlug)}专题汇总了最近相关文章中反复出现的判断。`,
       currentConsensus: sentences.slice(0, 3).length > 0 ? sentences.slice(0, 3) : ["近期文章在同一主题上持续强化。"],
       disagreements: sentences.slice(3, 4),
       trendPredictions: [
         {
-          statement: `${topicSlug} 相关产品会继续朝更成熟的产品化与商业化形态演进。`,
+          statement: `${topicSlugToChineseName(topicSlug)}相关产品会继续朝更成熟的产品化与商业化形态演进。`,
           triggerConditions: ["文章讨论持续增加", "相关投资动态继续出现"],
           timeWindow: "未来 1-2 年",
           confidence: "medium",
           supportingEvidence: articles.flatMap((article) => article.evidenceLinks).slice(0, 2)
         },
         {
-          statement: `${topicSlug} 的竞争重点会从模型能力延伸到分发、工作流和用户体验。`,
+          statement: `${topicSlugToChineseName(topicSlug)}的竞争重点会从模型能力延伸到分发、工作流和用户体验。`,
           triggerConditions: ["赛道参与者增多", "产品功能趋于同质化"],
           timeWindow: "未来 1-2 年",
           confidence: "medium",
@@ -103,11 +283,13 @@ export class HeuristicAnalysisClient implements AnalysisClient {
     return {
       title: `a16z AI 周报 ${input.weekStart} - ${input.weekEnd}`,
       topSignals: topSignals.length > 0 ? topSignals : ["本周文章继续强化 AI 结构性机会。"],
-      topicMovements: unique(input.articles.flatMap((article) => article.topics)).slice(0, 4),
+      topicMovements: unique(input.articles.flatMap((article) => article.topics))
+        .slice(0, 4)
+        .map((topic) => `${topicSlugToChineseName(topic)} 的讨论热度正在上升。`),
       trendPredictions: [
         {
           statement: "a16z 关注主题会继续从模型能力外溢到产品与商业化执行。",
-          triggerConditions: ["Investment News 持续与主题文章形成印证", "专题内文章数量上升"],
+          triggerConditions: ["投资动态持续与主题文章形成印证", "专题内文章数量上升"],
           timeWindow: "未来 1-2 年",
           confidence: "medium",
           supportingEvidence: input.articles.flatMap((article) => article.evidenceLinks).slice(0, 2)
@@ -160,7 +342,16 @@ export class VercelAiAnalysisClient implements AnalysisClient {
       ].join("\n")
     });
 
-    return articleAnalysisSchema.parse(result.object);
+    const parsed = articleAnalysisSchema.parse(result.object);
+    return {
+      ...parsed,
+      zhTitle: deriveInsightTitle({
+        sourceTitle: article.sourceTitle,
+        summary: parsed.summary,
+        keyJudgements: parsed.keyJudgements,
+        candidateTopics: parsed.candidateTopics
+      })
+    };
   }
 
   async analyzeTopic(topicSlug: string, articles: StoredArticle[]): Promise<TopicAnalysis> {

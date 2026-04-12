@@ -3,6 +3,8 @@ export interface Env {
   CONTENT_BUCKET?: R2Bucket;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL?: string;
+  SEED_FIXTURES?: string;
+  AUTO_PUBLISH_IMPORTED?: string;
   ADMIN_EMAILS?: string;
   AUTH_MODE?: "cloudflare-access" | "test";
   TEST_ADMIN_EMAIL?: string;

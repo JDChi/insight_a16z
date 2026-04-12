@@ -46,7 +46,22 @@ internalRoutes.get("/review-states", async (c) => {
 
 internalRoutes.post("/ingestion/run", async (c) => {
   const service = createContentService(c.env);
-  return c.json(await service.runWeeklyIngestion());
+  const body = await c.req.json().catch(() => ({}));
+  return c.json(
+    await service.runWeeklyIngestion({
+      limit: typeof body.limit === "number" ? body.limit : undefined,
+      autoPublish: body.autoPublish === true,
+      rebuildTopics: body.rebuildTopics === true,
+      rebuildDigest: body.rebuildDigest === true,
+      resetBeforeImport: body.resetBeforeImport === true
+    })
+  );
+});
+
+internalRoutes.post("/reset", async (c) => {
+  const service = createContentService(c.env);
+  await service.clearAllContent();
+  return c.json({ ok: true });
 });
 
 internalRoutes.post("/analysis/articles/:id", async (c) => {

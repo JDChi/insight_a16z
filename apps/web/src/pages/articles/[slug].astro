@@ -4,6 +4,7 @@ import SiteLayout from "../../layouts/SiteLayout.astro";
 import EmptyState from "../../components/EmptyState.astro";
 import EvidenceList from "../../components/EvidenceList.astro";
 import TopicCard from "../../components/TopicCard.astro";
+import { toChineseContentType } from "../../lib/display";
 import { getArticleBySlug, getTopics } from "../../lib/content-source";
 
 const article = await getArticleBySlug(Astro.params.slug ?? "");
@@ -16,9 +17,15 @@ const relatedTopics = topics.filter((topic) => article?.relatedTopics.some((item
     <ContentLayout
       title={article.zhTitle}
       intro={article.summary}
-      meta={[article.publishedAt, article.contentType, article.sourceTitle]}
+      meta={[article.publishedAt, toChineseContentType(article.contentType)]}
     >
       <section class="stack">
+        <div class="panel" style="padding: 18px 20px;">
+          <div class="eyebrow">来源信息</div>
+          <p><strong>英文原标题：</strong>{article.sourceTitle}</p>
+          <p><strong>来源：</strong><a href={article.sourceUrl} target="_blank" rel="noreferrer">查看 a16z 原文</a></p>
+        </div>
+
         <div>
           <div class="eyebrow">核心要点</div>
           <ul>
@@ -41,12 +48,6 @@ const relatedTopics = topics.filter((topic) => article?.relatedTopics.some((item
           <div class="eyebrow">证据链</div>
           <EvidenceList evidence={article.evidenceLinks} />
         </div>
-
-        <div>
-          <div class="eyebrow">原文链接</div>
-          <p><a href={article.sourceUrl} target="_blank" rel="noreferrer">访问 a16z 原文</a></p>
-        </div>
-
         {relatedTopics.length > 0 && (
           <div class="stack">
             <div class="eyebrow">关联专题</div>

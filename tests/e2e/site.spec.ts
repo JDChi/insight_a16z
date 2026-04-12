@@ -5,6 +5,10 @@ test("homepage renders the key sections", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "最新文章" })).toBeVisible();
   await expect(page.locator("h1").filter({ hasText: /a16z AI 周报/i })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("Weekly Signals");
+  await expect(page.locator("body")).not.toContainText("Investment News");
+  await expect(page.getByText("本周最重要洞察")).toBeVisible();
+  await expect(page.getByText("最新投资动态")).toBeVisible();
 });
 
 test("article and topic pages render structured content", async ({ page }) => {

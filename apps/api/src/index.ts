@@ -10,7 +10,9 @@ export function createApp() {
 
   app.use("*", async (c, next) => {
     const service = createContentService(c.env);
-    await service.seedFixtures();
+    if (c.env.SEED_FIXTURES !== "false") {
+      await service.seedFixtures();
+    }
     await next();
   });
 

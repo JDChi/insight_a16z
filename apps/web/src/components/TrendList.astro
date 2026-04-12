@@ -1,4 +1,6 @@
 ---
+import { toChineseConfidence } from "../lib/display";
+
 interface Props {
   trends: Array<{
     statement: string;
@@ -15,7 +17,7 @@ const { trends } = Astro.props;
   {trends.map((trend) => (
     <article class="trend-card panel">
       <div class="trend-meta">
-        <span>{trend.confidence}</span>
+        <span>{toChineseConfidence(trend.confidence)}</span>
         <span>{trend.timeWindow}</span>
       </div>
       <h3>{trend.statement}</h3>

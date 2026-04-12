@@ -1,6 +1,7 @@
 ---
 import SiteLayout from "../../layouts/SiteLayout.astro";
 import { isAdminRequest } from "../../lib/admin-auth";
+import { toChineseContentType } from "../../lib/display";
 import { getAdminArticles } from "../../lib/content-source";
 import AdminShell from "./_components/AdminShell.astro";
 import RecordTable from "./_components/RecordTable.astro";
@@ -16,7 +17,7 @@ const articles = await getAdminArticles();
         rows={articles.map((article) => ({
           id: article.id,
           title: article.zhTitle,
-          meta: `${article.contentType} · ${article.publishedAt}`,
+          meta: `${toChineseContentType(article.contentType)} · ${article.publishedAt}`,
           status: article.reviewState,
           approveAction: {
             entityType: "article",

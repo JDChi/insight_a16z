@@ -1,4 +1,6 @@
 ---
+import { toChineseTopicName } from "../lib/display";
+
 interface Props {
   topic: {
     slug: string;
@@ -13,8 +15,8 @@ const { topic } = Astro.props;
 ---
 
 <article class="topic-card panel">
-  <div class="eyebrow">Topic</div>
-  <h3><a href={`/topics/${topic.slug}`}>{topic.name}</a></h3>
+  <div class="eyebrow">专题</div>
+  <h3><a href={`/topics/${topic.slug}`}>{toChineseTopicName(topic.name)}</a></h3>
   <p>{topic.intro}</p>
   <div class="meta">
     <span>{topic.articleCount} 篇文章</span>

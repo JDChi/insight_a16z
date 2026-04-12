@@ -13,6 +13,20 @@ const jobs = await getJobs();
 <SiteLayout title="后台概览">
   {authorized ? (
     <AdminShell title={`后台概览 · ${getAdminEmail(Astro.request.headers)}`}>
+      <div class="panel actions-panel">
+        <form method="post" action="/admin/api/actions">
+          <input type="hidden" name="kind" value="ingest-live" />
+          <button type="submit">导入 a16z 真文章</button>
+        </form>
+        <form method="post" action="/admin/api/actions">
+          <input type="hidden" name="kind" value="rebuild-topics" />
+          <button type="submit">重建专题</button>
+        </form>
+        <form method="post" action="/admin/api/actions">
+          <input type="hidden" name="kind" value="rebuild-digest" />
+          <button type="submit">生成周报</button>
+        </form>
+      </div>
       <div class="grid-two">
         <article class="panel metric"><strong>{overview.draftArticles}</strong><span>草稿文章</span></article>
         <article class="panel metric"><strong>{overview.reviewingArticles}</strong><span>待审文章</span></article>
@@ -37,6 +51,20 @@ const jobs = await getJobs();
     padding: 24px;
     display: grid;
     gap: 8px;
+  }
+
+  .actions-panel {
+    padding: 18px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .actions-panel button {
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: white;
   }
 
   strong {

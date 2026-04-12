@@ -64,6 +64,7 @@ export interface ReviewActionInput {
 
 export interface ContentRepository {
   seedFixtures(): Promise<void>;
+  clearAll(): Promise<void>;
   listArticles(filters?: ListFilters): Promise<ArticleSummary[]>;
   getArticleBySlug(slug: string): Promise<StoredArticle | null>;
   getArticleById(id: string): Promise<StoredArticle | null>;
