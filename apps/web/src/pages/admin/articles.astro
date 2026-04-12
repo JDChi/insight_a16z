@@ -1,0 +1,39 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { isAdminRequest } from "../../lib/admin-auth";
+import { getAdminArticles } from "../../lib/content-source";
+import AdminShell from "./_components/AdminShell.astro";
+import RecordTable from "./_components/RecordTable.astro";
+
+const authorized = isAdminRequest(Astro.request.headers);
+const articles = await getAdminArticles();
+---
+
+<SiteLayout title="后台文章">
+  {authorized ? (
+    <AdminShell title="文章队列">
+      <RecordTable
+        rows={articles.map((article) => ({
+          id: article.id,
+          title: article.zhTitle,
+          meta: `${article.contentType} · ${article.publishedAt}`,
+          status: article.reviewState,
+          approveAction: {
+            entityType: "article",
+            entityId: article.id
+          },
+          publishAction: {
+            entityType: "article",
+            entityId: article.id
+          }
+        }))}
+      />
+    </AdminShell>
+  ) : (
+    <section class="container" style="padding: 36px 0 72px;">
+      <div class="panel" style="padding: 24px;">
+        <h1>后台访问受限</h1>
+      </div>
+    </section>
+  )}
+</SiteLayout>

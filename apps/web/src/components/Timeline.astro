@@ -1,0 +1,40 @@
+---
+interface Props {
+  timeline: Array<{
+    slug: string;
+    title: string;
+    publishedAt: string;
+  }>;
+}
+
+const { timeline } = Astro.props;
+---
+
+<div class="timeline">
+  {timeline.map((item) => (
+    <div class="timeline-item">
+      <span>{item.publishedAt}</span>
+      <a href={`/articles/${item.slug}`}>{item.title}</a>
+    </div>
+  ))}
+</div>
+
+<style>
+  .timeline {
+    display: grid;
+    gap: 14px;
+    border-left: 2px solid rgba(182, 77, 19, 0.2);
+    padding-left: 18px;
+  }
+
+  .timeline-item {
+    display: grid;
+    gap: 6px;
+  }
+
+  span {
+    font-family: var(--font-ui);
+    font-size: 0.86rem;
+    color: var(--muted);
+  }
+</style>

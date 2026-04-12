@@ -1,0 +1,21 @@
+{
+  "name": "insight-a16z",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.4.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm --parallel --filter @insight-a16z/api --filter @insight-a16z/web dev",
+    "test": "pnpm run test:unit && pnpm run test:integration && pnpm run test:e2e",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "playwright test",
+    "check": "pnpm -r check"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.14.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.2"
+  }
+}

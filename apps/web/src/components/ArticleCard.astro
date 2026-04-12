@@ -1,0 +1,53 @@
+---
+interface Props {
+  article: {
+    slug: string;
+    zhTitle: string;
+    summary: string;
+    publishedAt: string;
+    contentType: string;
+    topics: string[];
+  };
+}
+
+const { article } = Astro.props;
+---
+
+<article class="card panel">
+  <div class="meta">
+    <span>{article.contentType}</span>
+    <span>{article.publishedAt}</span>
+  </div>
+  <h3><a href={`/articles/${article.slug}`}>{article.zhTitle}</a></h3>
+  <p>{article.summary}</p>
+  <div class="tags">
+    {article.topics.map((topic) => (
+      <span>{topic}</span>
+    ))}
+  </div>
+</article>
+
+<style>
+  .card {
+    padding: 22px;
+    display: grid;
+    gap: 14px;
+  }
+
+  .meta,
+  .tags {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-family: var(--font-ui);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  .tags span {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+</style>

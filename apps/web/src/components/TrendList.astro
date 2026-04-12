@@ -1,0 +1,46 @@
+---
+interface Props {
+  trends: Array<{
+    statement: string;
+    triggerConditions: string[];
+    confidence: string;
+    timeWindow: string;
+  }>;
+}
+
+const { trends } = Astro.props;
+---
+
+<div class="stack">
+  {trends.map((trend) => (
+    <article class="trend-card panel">
+      <div class="trend-meta">
+        <span>{trend.confidence}</span>
+        <span>{trend.timeWindow}</span>
+      </div>
+      <h3>{trend.statement}</h3>
+      <ul>
+        {trend.triggerConditions.map((condition) => (
+          <li>{condition}</li>
+        ))}
+      </ul>
+    </article>
+  ))}
+</div>
+
+<style>
+  .trend-card {
+    padding: 20px;
+  }
+
+  .trend-meta {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+    font-family: var(--font-ui);
+    color: var(--accent);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+</style>

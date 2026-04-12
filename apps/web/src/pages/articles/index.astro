@@ -1,0 +1,38 @@
+---
+import ArticleCard from "../../components/ArticleCard.astro";
+import EmptyState from "../../components/EmptyState.astro";
+import FilterBar from "../../components/FilterBar.astro";
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { getArticles } from "../../lib/content-source";
+
+const params = Astro.url.searchParams;
+const q = params.get("q")?.toLowerCase() ?? "";
+const type = params.get("type") ?? "";
+const articles = (await getArticles()).filter((article) => {
+  if (type && article.contentType !== type) return false;
+  if (q && !`${article.zhTitle} ${article.summary} ${article.sourceTitle}`.toLowerCase().includes(q)) return false;
+  return true;
+});
+---
+
+<SiteLayout title="文章归档">
+  <section class="container" style="padding: 36px 0 72px;">
+    <div class="stack">
+      <div>
+        <div class="eyebrow">Articles</div>
+        <h1>文章归档</h1>
+        <p>浏览 a16z AI 相关文章的中文整理结果。</p>
+      </div>
+      <FilterBar />
+      {articles.length > 0 ? (
+        <div class="grid-two">
+          {articles.map((article) => (
+            <ArticleCard article={article} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="没有匹配结果" description="换个关键词或内容类型再试试看。" />
+      )}
+    </div>
+  </section>
+</SiteLayout>

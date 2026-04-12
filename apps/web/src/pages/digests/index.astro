@@ -1,0 +1,23 @@
+---
+import DigestCard from "../../components/DigestCard.astro";
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { getDigests } from "../../lib/content-source";
+
+const digests = await getDigests();
+---
+
+<SiteLayout title="周报列表">
+  <section class="container stack" style="padding: 36px 0 72px;">
+    <div>
+      <div class="eyebrow">Digests</div>
+      <h1>周报列表</h1>
+      <p>每周聚合最重要的文章信号、专题迁移和趋势推演。</p>
+    </div>
+
+    <div class="stack">
+      {digests.map((digest) => (
+        <DigestCard digest={digest} />
+      ))}
+    </div>
+  </section>
+</SiteLayout>

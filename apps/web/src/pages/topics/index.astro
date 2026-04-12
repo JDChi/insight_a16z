@@ -1,0 +1,23 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import TopicCard from "../../components/TopicCard.astro";
+import { getTopics } from "../../lib/content-source";
+
+const topics = await getTopics();
+---
+
+<SiteLayout title="专题列表">
+  <section class="container stack" style="padding: 36px 0 72px;">
+    <div>
+      <div class="eyebrow">Topics</div>
+      <h1>专题列表</h1>
+      <p>把多篇 a16z 文章归并成可持续追踪的主题。</p>
+    </div>
+
+    <div class="grid-two">
+      {topics.map((topic) => (
+        <TopicCard topic={topic} />
+      ))}
+    </div>
+  </section>
+</SiteLayout>

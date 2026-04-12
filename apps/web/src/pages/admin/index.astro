@@ -1,0 +1,51 @@
+---
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import { getAdminEmail, isAdminRequest } from "../../lib/admin-auth";
+import { getAdminOverview, getJobs } from "../../lib/content-source";
+import AdminShell from "./_components/AdminShell.astro";
+import TaskTable from "./_components/TaskTable.astro";
+
+const authorized = isAdminRequest(Astro.request.headers);
+const overview = await getAdminOverview();
+const jobs = await getJobs();
+---
+
+<SiteLayout title="后台概览">
+  {authorized ? (
+    <AdminShell title={`后台概览 · ${getAdminEmail(Astro.request.headers)}`}>
+      <div class="grid-two">
+        <article class="panel metric"><strong>{overview.draftArticles}</strong><span>草稿文章</span></article>
+        <article class="panel metric"><strong>{overview.reviewingArticles}</strong><span>待审文章</span></article>
+        <article class="panel metric"><strong>{overview.publishedArticles}</strong><span>已发布文章</span></article>
+        <article class="panel metric"><strong>{overview.topicsInReview}</strong><span>待审专题</span></article>
+      </div>
+      <TaskTable jobs={jobs} />
+    </AdminShell>
+  ) : (
+    <section class="container" style="padding: 36px 0 72px;">
+      <div class="panel" style="padding: 24px;">
+        <div class="eyebrow">403</div>
+        <h1>后台访问受限</h1>
+        <p>请通过 Cloudflare Access 或测试头访问后台。</p>
+      </div>
+    </section>
+  )}
+</SiteLayout>
+
+<style>
+  .metric {
+    padding: 24px;
+    display: grid;
+    gap: 8px;
+  }
+
+  strong {
+    font-size: 2rem;
+    font-family: var(--font-display);
+  }
+
+  span {
+    color: var(--muted);
+    font-family: var(--font-ui);
+  }
+</style>

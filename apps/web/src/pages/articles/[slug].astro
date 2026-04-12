@@ -1,0 +1,67 @@
+---
+import ContentLayout from "../../layouts/ContentLayout.astro";
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import EmptyState from "../../components/EmptyState.astro";
+import EvidenceList from "../../components/EvidenceList.astro";
+import TopicCard from "../../components/TopicCard.astro";
+import { getArticleBySlug, getTopics } from "../../lib/content-source";
+
+const article = await getArticleBySlug(Astro.params.slug ?? "");
+const topics = await getTopics();
+const relatedTopics = topics.filter((topic) => article?.relatedTopics.some((item) => item.slug === topic.slug));
+---
+
+<SiteLayout title={article ? article.zhTitle : "文章未找到"}>
+  {article ? (
+    <ContentLayout
+      title={article.zhTitle}
+      intro={article.summary}
+      meta={[article.publishedAt, article.contentType, article.sourceTitle]}
+    >
+      <section class="stack">
+        <div>
+          <div class="eyebrow">核心要点</div>
+          <ul>
+            {article.keyPoints.map((point) => (
+              <li>{point}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <div class="eyebrow">关键判断</div>
+          <ul>
+            {article.keyJudgements.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <div class="eyebrow">证据链</div>
+          <EvidenceList evidence={article.evidenceLinks} />
+        </div>
+
+        <div>
+          <div class="eyebrow">原文链接</div>
+          <p><a href={article.sourceUrl} target="_blank" rel="noreferrer">访问 a16z 原文</a></p>
+        </div>
+
+        {relatedTopics.length > 0 && (
+          <div class="stack">
+            <div class="eyebrow">关联专题</div>
+            <div class="grid-two">
+              {relatedTopics.map((topic) => (
+                <TopicCard topic={topic} />
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+    </ContentLayout>
+  ) : (
+    <section class="container" style="padding: 36px 0 72px;">
+      <EmptyState title="文章未找到" description="这篇文章可能尚未发布，或者链接已发生变化。" />
+    </section>
+  )}
+</SiteLayout>

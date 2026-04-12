@@ -1,0 +1,26 @@
+---
+interface Props {
+  digest: {
+    slug: string;
+    title: string;
+    weekStart: string;
+    weekEnd: string;
+  };
+}
+
+const { digest } = Astro.props;
+---
+
+<article class="digest-card panel">
+  <div class="eyebrow">Weekly Digest</div>
+  <h3><a href={`/digests/${digest.slug}`}>{digest.title}</a></h3>
+  <p>{digest.weekStart} - {digest.weekEnd}</p>
+</article>
+
+<style>
+  .digest-card {
+    padding: 22px;
+    display: grid;
+    gap: 12px;
+  }
+</style>

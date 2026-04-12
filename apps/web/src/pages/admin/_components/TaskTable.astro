@@ -1,0 +1,58 @@
+---
+import StatusBadge from "./StatusBadge.astro";
+
+interface Props {
+  jobs: Array<{
+    id: string;
+    jobType: string;
+    status: string;
+    startedAt: string;
+    errorMessage: string | null;
+  }>;
+}
+
+const { jobs } = Astro.props;
+---
+
+<div class="panel table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>任务</th>
+        <th>开始时间</th>
+        <th>状态</th>
+        <th>错误</th>
+      </tr>
+    </thead>
+    <tbody>
+      {jobs.map((job) => (
+        <tr>
+          <td>{job.jobType}</td>
+          <td>{job.startedAt}</td>
+          <td><StatusBadge status={job.status} /></td>
+          <td>{job.errorMessage ?? "—"}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .table-wrap {
+    padding: 12px;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+  }
+</style>

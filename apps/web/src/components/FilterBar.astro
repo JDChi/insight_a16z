@@ -1,0 +1,49 @@
+---
+const params = Astro.url.searchParams;
+const q = params.get("q") ?? "";
+const type = params.get("type") ?? "";
+---
+
+<form class="filter-bar panel" method="get">
+  <input type="search" name="q" value={q} placeholder="搜索文章、专题或判断" />
+  <select name="type">
+    <option value="">全部类型</option>
+    <option value="Article" selected={type === "Article"}>Article</option>
+    <option value="Investment News" selected={type === "Investment News"}>Investment News</option>
+  </select>
+  <button type="submit">筛选</button>
+</form>
+
+<style>
+  .filter-bar {
+    display: flex;
+    gap: 12px;
+    padding: 18px;
+    margin-bottom: 24px;
+  }
+
+  input,
+  select,
+  button {
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    padding: 12px 14px;
+    background: white;
+  }
+
+  input {
+    flex: 1;
+  }
+
+  button {
+    background: var(--accent);
+    color: white;
+    border-color: transparent;
+  }
+
+  @media (max-width: 720px) {
+    .filter-bar {
+      flex-direction: column;
+    }
+  }
+</style>

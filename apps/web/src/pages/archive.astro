@@ -1,0 +1,36 @@
+---
+import ArticleCard from "../components/ArticleCard.astro";
+import EmptyState from "../components/EmptyState.astro";
+import FilterBar from "../components/FilterBar.astro";
+import SiteLayout from "../layouts/SiteLayout.astro";
+import { getArticles } from "../lib/content-source";
+
+const params = Astro.url.searchParams;
+const q = params.get("q")?.toLowerCase() ?? "";
+const type = params.get("type") ?? "";
+const articles = (await getArticles()).filter((article) => {
+  if (type && article.contentType !== type) return false;
+  if (q && !`${article.zhTitle} ${article.summary}`.toLowerCase().includes(q)) return false;
+  return true;
+});
+---
+
+<SiteLayout title="归档">
+  <section class="container stack" style="padding: 36px 0 72px;">
+    <div>
+      <div class="eyebrow">Archive</div>
+      <h1>归档与筛选</h1>
+      <p>按内容类型与关键词浏览已整理内容。</p>
+    </div>
+    <FilterBar />
+    {articles.length > 0 ? (
+      <div class="grid-two">
+        {articles.map((article) => (
+          <ArticleCard article={article} />
+        ))}
+      </div>
+    ) : (
+      <EmptyState title="归档为空" description="当前筛选条件下没有匹配内容。" />
+    )}
+  </section>
+</SiteLayout>

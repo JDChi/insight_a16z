@@ -1,0 +1,7 @@
+name = "insight-a16z-web"
+compatibility_date = "2026-04-12"
+pages_build_output_dir = "./dist"
+
+[[kv_namespaces]]
+binding = "SESSION"
+id = "replace-with-your-session-kv-id"

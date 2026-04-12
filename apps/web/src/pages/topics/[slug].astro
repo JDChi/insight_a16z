@@ -1,0 +1,56 @@
+---
+import ContentLayout from "../../layouts/ContentLayout.astro";
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import EmptyState from "../../components/EmptyState.astro";
+import EvidenceList from "../../components/EvidenceList.astro";
+import Timeline from "../../components/Timeline.astro";
+import TrendList from "../../components/TrendList.astro";
+import { getTopicBySlug } from "../../lib/content-source";
+
+const topic = await getTopicBySlug(Astro.params.slug ?? "");
+---
+
+<SiteLayout title={topic ? topic.name : "专题未找到"}>
+  {topic ? (
+    <ContentLayout title={topic.name} intro={topic.intro} meta={[`覆盖 ${topic.articleCount} 篇文章`, `更新于 ${topic.updatedAt}`]}>
+      <section class="stack">
+        <div>
+          <div class="eyebrow">当前共识</div>
+          <ul>
+            {topic.currentConsensus.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <div class="eyebrow">分歧点</div>
+          <ul>
+            {topic.disagreements.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <div class="eyebrow">趋势推演</div>
+          <TrendList trends={topic.trendPredictions} />
+        </div>
+
+        <div>
+          <div class="eyebrow">证据来源</div>
+          <EvidenceList evidence={topic.evidenceLinks} />
+        </div>
+
+        <div>
+          <div class="eyebrow">相关文章时间线</div>
+          <Timeline timeline={topic.timeline} />
+        </div>
+      </section>
+    </ContentLayout>
+  ) : (
+    <section class="container" style="padding: 36px 0 72px;">
+      <EmptyState title="专题未找到" description="该专题可能还在审阅中，尚未发布。" />
+    </section>
+  )}
+</SiteLayout>

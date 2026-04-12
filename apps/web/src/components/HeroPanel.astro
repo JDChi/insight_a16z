@@ -1,0 +1,65 @@
+---
+interface Props {
+  title: string;
+  summary: string;
+  signals: string[];
+}
+
+const { title, summary, signals } = Astro.props;
+---
+
+<section class="hero panel">
+  <div class="eyebrow">Weekly Signals</div>
+  <h1>{title}</h1>
+  <p class="hero-copy">{summary}</p>
+  <div class="signal-grid">
+    {signals.map((signal) => (
+      <article class="signal-card">
+        <span>Signal</span>
+        <p>{signal}</p>
+      </article>
+    ))}
+  </div>
+</section>
+
+<style>
+  .hero {
+    padding: 30px;
+    display: grid;
+    gap: 18px;
+  }
+
+  .hero-copy {
+    font-size: 1.08rem;
+    max-width: 60ch;
+  }
+
+  .signal-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .signal-card {
+    padding: 18px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0.8));
+    border: 1px solid rgba(182, 77, 19, 0.16);
+  }
+
+  .signal-card span {
+    display: inline-block;
+    margin-bottom: 12px;
+    font-family: var(--font-ui);
+    font-size: 0.78rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  @media (max-width: 860px) {
+    .signal-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

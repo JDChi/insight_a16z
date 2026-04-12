@@ -1,0 +1,47 @@
+---
+import ContentLayout from "../../layouts/ContentLayout.astro";
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import EmptyState from "../../components/EmptyState.astro";
+import EvidenceList from "../../components/EvidenceList.astro";
+import TrendList from "../../components/TrendList.astro";
+import { getDigestBySlug } from "../../lib/content-source";
+
+const digest = await getDigestBySlug(Astro.params.slug ?? "");
+---
+
+<SiteLayout title={digest ? digest.title : "周报未找到"}>
+  {digest ? (
+    <ContentLayout title={digest.title} intro="一周内最值得关注的文章与专题变化。" meta={[digest.weekStart, digest.weekEnd]}>
+      <section class="stack">
+        <div>
+          <div class="eyebrow">本周信号</div>
+          <ul>
+            {digest.topSignals.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <div class="eyebrow">主题变化</div>
+          <ul>
+            {digest.topicMovements.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <div class="eyebrow">趋势推演</div>
+          <TrendList trends={digest.trendPredictions} />
+        </div>
+        <div>
+          <div class="eyebrow">证据来源</div>
+          <EvidenceList evidence={digest.evidenceLinks} />
+        </div>
+      </section>
+    </ContentLayout>
+  ) : (
+    <section class="container" style="padding: 36px 0 72px;">
+      <EmptyState title="周报未找到" description="这期周报可能还在审阅中，稍后再来查看。" />
+    </section>
+  )}
+</SiteLayout>

@@ -1,0 +1,40 @@
+---
+interface Props {
+  topic: {
+    slug: string;
+    name: string;
+    intro: string;
+    articleCount: number;
+    updatedAt: string;
+  };
+}
+
+const { topic } = Astro.props;
+---
+
+<article class="topic-card panel">
+  <div class="eyebrow">Topic</div>
+  <h3><a href={`/topics/${topic.slug}`}>{topic.name}</a></h3>
+  <p>{topic.intro}</p>
+  <div class="meta">
+    <span>{topic.articleCount} 篇文章</span>
+    <span>更新于 {topic.updatedAt}</span>
+  </div>
+</article>
+
+<style>
+  .topic-card {
+    padding: 22px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-family: var(--font-ui);
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+</style>
