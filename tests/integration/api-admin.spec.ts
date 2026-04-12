@@ -1,4 +1,5 @@
 import { createApp } from "../../apps/api/src/index";
+import { resetArticleQueueState } from "../../apps/api/src/lib/article-queue";
 import { resetMemoryStores } from "../../apps/api/src/lib/db";
 
 const adminEnv = {
@@ -9,6 +10,7 @@ const adminEnv = {
 describe("admin API", () => {
   beforeEach(() => {
     resetMemoryStores();
+    resetArticleQueueState();
   });
 
   it("blocks internal routes without admin identity", async () => {
@@ -57,12 +59,21 @@ describe("admin API", () => {
     expect(stateResponse.status).toBe(200);
 
     const processResponse = await app.request("/internal/analysis/articles/process", { method: "POST", headers }, adminEnv);
-    expect(processResponse.status).toBe(200);
+    expect(processResponse.status).toBe(202);
+    expect(await processResponse.json()).toMatchObject({ started: true, running: true });
 
-    const updatedArticlesResponse = await app.request("/internal/articles", { headers }, adminEnv);
-    const updatedArticles = await updatedArticlesResponse.json();
-    const updated = updatedArticles.find((item: { id: string }) => item.id === target.id);
+    let updated = null;
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const updatedArticlesResponse = await app.request("/internal/articles", { headers }, adminEnv);
+      const updatedArticles = await updatedArticlesResponse.json();
+      updated = updatedArticles.find((item: { id: string }) => item.id === target.id) ?? null;
+      if (updated?.reviewState === "published") {
+        break;
+      }
 
-    expect(updated.reviewState).toBe("published");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    expect(updated?.reviewState).toBe("published");
   });
 });

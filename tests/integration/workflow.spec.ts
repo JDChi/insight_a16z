@@ -1,9 +1,11 @@
+import { resetArticleQueueState } from "../../apps/api/src/lib/article-queue";
 import { createContentService } from "../../apps/api/src/lib/service";
 import { resetMemoryStores } from "../../apps/api/src/lib/db";
 
 describe("content workflow", () => {
   beforeEach(() => {
     resetMemoryStores();
+    resetArticleQueueState();
   });
 
   it("publishes articles immediately after analysis", async () => {

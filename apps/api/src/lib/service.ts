@@ -210,13 +210,21 @@ export class ContentService {
     limit?: number;
     rebuildTopics?: boolean;
     rebuildDigest?: boolean;
+    includeFailed?: boolean;
   }): Promise<{ jobId: string; processed: number; published: number; failed: number }> {
     const job = await this.repo.createJob("article-processing");
 
     try {
       const limit = options?.limit ?? 3;
+      const includeFailed = options?.includeFailed ?? true;
       const candidates = (await this.repo.listArticles())
-        .filter((article) => article.reviewState === "ingested" || article.reviewState === "failed" || article.reviewState === "draft")
+        .filter((article) => {
+          if (article.reviewState === "ingested" || article.reviewState === "draft") {
+            return true;
+          }
+
+          return includeFailed && article.reviewState === "failed";
+        })
         .slice(0, limit);
 
       let processed = 0;

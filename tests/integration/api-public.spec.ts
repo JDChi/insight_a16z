@@ -1,9 +1,11 @@
 import { createApp } from "../../apps/api/src/index";
+import { resetArticleQueueState } from "../../apps/api/src/lib/article-queue";
 import { resetMemoryStores } from "../../apps/api/src/lib/db";
 
 describe("public API", () => {
   beforeEach(() => {
     resetMemoryStores();
+    resetArticleQueueState();
   });
 
   it("returns published articles only", async () => {
