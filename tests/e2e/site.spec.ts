@@ -9,6 +9,7 @@ test("homepage renders the key sections", async ({ page }) => {
   await expect(page.locator("body")).not.toContainText("Investment News");
   await expect(page.getByText("本周最重要洞察")).toBeVisible();
   await expect(page.getByText("最新投资动态")).toBeVisible();
+  await expect(page.locator("header nav")).not.toContainText("后台");
 });
 
 test("article and topic pages render structured content", async ({ page }) => {
@@ -16,10 +17,12 @@ test("article and topic pages render structured content", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /AI 伴侣与下一代交互界面/ })).toBeVisible();
   await expect(page.getByText("证据链")).toBeVisible();
   await expect(page.getByText("未来推演")).toBeVisible();
+  await expect(page.locator("header nav")).not.toContainText("后台");
 
   await page.goto("/topics/agent-workflows");
   await expect(page.getByRole("heading", { name: "Agent 工作流" })).toBeVisible();
   await expect(page.getByText("趋势推演")).toBeVisible();
+  await expect(page.locator("header nav")).not.toContainText("后台");
 });
 
 test("admin list no longer shows manual approve actions", async ({ page }) => {
