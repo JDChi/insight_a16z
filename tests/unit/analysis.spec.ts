@@ -22,6 +22,10 @@ describe("heuristic analysis client", () => {
     expect(result.summary).toMatch(/[一-龥]/);
     expect(result.keyPoints.every((item) => /[一-龥]/.test(item))).toBe(true);
     expect(result.keyJudgements.every((item) => /[一-龥]/.test(item))).toBe(true);
+    expect(result.outlook.statement).toMatch(/[一-龥]/);
+    expect(result.outlook.timeHorizon).toMatch(/未来/);
+    expect(result.outlook.whyNow).toMatch(/[一-龥]/);
+    expect(result.outlook.signalsToWatch.length).toBeGreaterThan(0);
   });
 
   it("falls back to Chinese article analysis when model JSON is incomplete", () => {
@@ -37,6 +41,7 @@ describe("heuristic analysis client", () => {
     expect(result.summary).toMatch(/[一-龥]/);
     expect(result.keyPoints).toHaveLength(3);
     expect(result.keyJudgements.length).toBeGreaterThanOrEqual(2);
+    expect(result.outlook.statement).toMatch(/[一-龥]/);
   });
 
   it("truncates very long article bodies before sending them to the model", () => {

@@ -31,6 +31,13 @@ export const sampleArticles: ArticleDetail[] = [
       "AI 消费产品会越来越像关系型产品而不是工具型产品。",
       "人格和记忆管理会成为下一阶段的重要产品能力。"
     ],
+    outlook: {
+      statement: "未来 6-12 个月，AI 伴侣类产品会更快转向强调长期关系和连续互动的产品形态。",
+      timeHorizon: "未来 6-12 个月",
+      whyNow: "文章已经把竞争重点从功能演示转向留存、人格和持续关系管理。",
+      signalsToWatch: ["产品是否强化记忆能力", "留存指标是否取代新奇功能成为核心卖点"],
+      confidence: "medium"
+    },
     evidenceLinks: [
       {
         claim: "关系型留存是关键",
@@ -75,6 +82,13 @@ export const sampleArticles: ArticleDetail[] = [
       "企业 Agent 的真正价值在于接入流程，而不是对话体验。",
       "具备审计能力的工作流产品更可能在大客户场景中胜出。"
     ],
+    outlook: {
+      statement: "未来 6-12 个月，企业 Agent 产品会更明显地向带审批和审计能力的流程系统收敛。",
+      timeHorizon: "未来 6-12 个月",
+      whyNow: "文章把采购重点放在任务闭环、审批和可观测性，而不是单点自动化体验。",
+      signalsToWatch: ["更多企业案例强调流程接入", "采购标准里出现审计和回滚要求"],
+      confidence: "high"
+    },
     evidenceLinks: [
       {
         claim: "任务闭环是关键",

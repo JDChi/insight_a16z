@@ -7,6 +7,13 @@ describe("analysis schemas", () => {
       summary: "测试摘要",
       keyPoints: ["a", "b", "c"],
       keyJudgements: ["d", "e"],
+      outlook: {
+        statement: "未来 6-12 个月会进一步走向产品化。",
+        timeHorizon: "未来 6-12 个月",
+        whyNow: "文中已经出现更明确的落地信号。",
+        signalsToWatch: ["是否出现更多案例"],
+        confidence: "medium"
+      },
       candidateTopics: ["agent-workflows"],
       evidenceLinks: [
         {

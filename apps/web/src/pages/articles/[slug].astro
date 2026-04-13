@@ -44,6 +44,15 @@ const relatedTopics = topics.filter((topic) => article?.relatedTopics.some((item
           </ul>
         </div>
 
+        <div class="panel" style="padding: 18px 20px;">
+          <div class="eyebrow">未来推演</div>
+          <p><strong>判断：</strong>{article.outlook.statement}</p>
+          <p><strong>时间跨度：</strong>{article.outlook.timeHorizon}</p>
+          <p><strong>为什么是现在：</strong>{article.outlook.whyNow}</p>
+          <p><strong>重点信号：</strong>{article.outlook.signalsToWatch.join("、")}</p>
+          <p><strong>置信度：</strong>{article.outlook.confidence === "high" ? "高" : article.outlook.confidence === "medium" ? "中" : "低"}</p>
+        </div>
+
         <div>
           <div class="eyebrow">证据链</div>
           <EvidenceList evidence={article.evidenceLinks} />

@@ -21,11 +21,20 @@ export const trendPredictionSchema = z.object({
   supportingEvidence: z.array(evidenceLinkSchema).min(1)
 });
 
+export const articleOutlookSchema = z.object({
+  statement: z.string().min(1),
+  timeHorizon: z.string().min(1),
+  whyNow: z.string().min(1),
+  signalsToWatch: z.array(z.string().min(1)).min(1).max(4),
+  confidence: z.enum(confidenceLevels)
+});
+
 export const articleAnalysisSchema = z.object({
   zhTitle: z.string().min(1),
   summary: z.string().min(1),
   keyPoints: z.array(z.string().min(1)).min(3).max(5),
   keyJudgements: z.array(z.string().min(1)).min(2).max(5),
+  outlook: articleOutlookSchema,
   candidateTopics: z.array(z.string().min(1)).min(1).max(4),
   evidenceLinks: z.array(evidenceLinkSchema).min(2)
 });
@@ -62,6 +71,7 @@ export const articleSummarySchema = z.object({
 export const articleDetailSchema = articleSummarySchema.extend({
   keyPoints: z.array(z.string().min(1)),
   keyJudgements: z.array(z.string().min(1)),
+  outlook: articleOutlookSchema,
   evidenceLinks: z.array(evidenceLinkSchema),
   relatedTopics: z.array(
     z.object({
@@ -144,6 +154,7 @@ export const adminOverviewSchema = z.object({
 
 export type EvidenceLink = z.infer<typeof evidenceLinkSchema>;
 export type TrendPrediction = z.infer<typeof trendPredictionSchema>;
+export type ArticleOutlook = z.infer<typeof articleOutlookSchema>;
 export type ArticleAnalysis = z.infer<typeof articleAnalysisSchema>;
 export type TopicAnalysis = z.infer<typeof topicAnalysisSchema>;
 export type DigestAnalysis = z.infer<typeof digestAnalysisSchema>;

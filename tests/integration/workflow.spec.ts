@@ -87,6 +87,13 @@ describe("content workflow", () => {
           summary: "这是一段有效的中文摘要。",
           keyPoints: ["要点一", "要点二", "要点三"],
           keyJudgements: ["判断一", "判断二"],
+          outlook: {
+            statement: "未来 6-12 个月，相关产品会进入更强的流程化落地阶段。",
+            timeHorizon: "未来 6-12 个月",
+            whyNow: "文章已经显示企业采用正在从试点转向流程整合。",
+            signalsToWatch: ["更多预算从试点转向正式采购"],
+            confidence: "medium"
+          },
           candidateTopics: ["agent-workflows"],
           evidenceLinks: [
             { claim: "判断一", evidenceText: "要点一", sourceLocator: "paragraph:1" },

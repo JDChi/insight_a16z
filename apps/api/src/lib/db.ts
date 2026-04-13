@@ -224,6 +224,14 @@ export class MemoryRepository implements ContentRepository {
       topics: existing?.topics ?? [],
       keyPoints: existing?.keyPoints ?? [],
       keyJudgements: existing?.keyJudgements ?? [],
+      outlook:
+        existing?.outlook ?? {
+          statement: "",
+          timeHorizon: "",
+          whyNow: "",
+          signalsToWatch: [],
+          confidence: "low"
+        },
       evidenceLinks: existing?.evidenceLinks ?? [],
       relatedTopics: existing?.relatedTopics ?? [],
       rawR2Key: keys.rawR2Key,
@@ -260,6 +268,7 @@ export class MemoryRepository implements ContentRepository {
       summary: analysis.summary,
       keyPoints: analysis.keyPoints,
       keyJudgements: analysis.keyJudgements,
+      outlook: analysis.outlook,
       evidenceLinks: analysis.evidenceLinks,
       topics: analysis.candidateTopics,
       relatedTopics,
@@ -478,9 +487,9 @@ class D1Repository implements ContentRepository {
         .prepare(
           `INSERT INTO articles (
             id, source_url, canonical_url, slug, content_type, source_title, zh_title, published_at,
-            summary, key_points_json, key_judgements_json, candidate_topics_json, raw_r2_key, cleaned_r2_key,
+            summary, key_points_json, key_judgements_json, outlook_json, candidate_topics_json, raw_r2_key, cleaned_r2_key,
             review_state, published_on, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           article.id,
@@ -494,6 +503,7 @@ class D1Repository implements ContentRepository {
           article.summary,
           stringifyJson(article.keyPoints),
           stringifyJson(article.keyJudgements),
+          stringifyJson(article.outlook),
           stringifyJson(article.relatedTopics.map((topic) => topic.slug)),
           `raw/${article.id}.html`,
           `cleaned/${article.id}.json`,
@@ -650,6 +660,7 @@ class D1Repository implements ContentRepository {
       .prepare(
         `UPDATE articles
          SET zh_title = ?, summary = ?, key_points_json = ?, key_judgements_json = ?, candidate_topics_json = ?, updated_at = ?
+         , outlook_json = ?
          WHERE id = ?`
       )
       .bind(
@@ -659,6 +670,7 @@ class D1Repository implements ContentRepository {
         stringifyJson(analysis.keyJudgements),
         stringifyJson(analysis.candidateTopics),
         nowIso(),
+        stringifyJson(analysis.outlook),
         articleId
       )
       .run();
@@ -935,6 +947,13 @@ class D1Repository implements ContentRepository {
       topics: parseJson<string[]>(row.candidate_topics_json, []),
       keyPoints: parseJson<string[]>(row.key_points_json, []),
       keyJudgements: parseJson<string[]>(row.key_judgements_json, []),
+      outlook: parseJson<ArticleDetail["outlook"]>(row.outlook_json, {
+        statement: "",
+        timeHorizon: "",
+        whyNow: "",
+        signalsToWatch: [],
+        confidence: "low"
+      }),
       evidenceLinks: [],
       relatedTopics: parseJson<string[]>(row.candidate_topics_json, []).map((slug) => ({
         slug,

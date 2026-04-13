@@ -1,6 +1,7 @@
 import { generateText, Output } from "ai";
 import {
   articleAnalysisSchema,
+  type ArticleOutlook,
   digestAnalysisSchema,
   topicAnalysisSchema,
   type ArticleAnalysis,
@@ -276,6 +277,77 @@ function buildChineseFallbackAnalysis(input: {
   };
 }
 
+function buildArticleOutlook(input: {
+  sourceTitle: string;
+  summary: string;
+  keyJudgements: string[];
+  candidateTopics: string[];
+  plainText: string;
+}): ArticleOutlook {
+  const source = input.sourceTitle.toLowerCase();
+  const normalizedText = `${input.sourceTitle}\n${input.summary}\n${input.keyJudgements.join("\n")}\n${input.plainText}`.toLowerCase();
+  const topic = input.candidateTopics[0] ?? "general-ai";
+  const topicName = topicSlugToChineseName(topic);
+
+  if (source.includes("retention")) {
+    return {
+      statement: "未来 6-12 个月，AI 产品团队会更系统地把留存和复访当成产品优化的主战场。",
+      timeHorizon: "未来 6-12 个月",
+      whyNow: "文章已经把竞争焦点从新增和新奇功能转向长期使用行为与留存质量。",
+      signalsToWatch: ["产品指标是否更强调复访和留存", "更多案例是否开始围绕习惯形成展开"],
+      confidence: "high"
+    };
+  }
+
+  if (source.includes("enterprise") || normalizedText.includes("cio") || normalizedText.includes("procurement")) {
+    return {
+      statement: "未来 6-12 个月，企业 AI 采购会更快从试点预算转向平台化和治理导向的正式采购。",
+      timeHorizon: "未来 6-12 个月",
+      whyNow: "文中已经出现采购、治理、交付和预算协同成熟的信号，说明企业买方正在进入更系统化阶段。",
+      signalsToWatch: ["是否出现统一采购平台", "是否更强调治理和可维护性", "试点项目是否转成组织级部署"],
+      confidence: "medium"
+    };
+  }
+
+  if (source.includes("agent") || normalizedText.includes("agent")) {
+    return {
+      statement: "未来 3-9 个月，Agent 产品会更快从能力展示转向审批明确、可回滚、可观测的执行流程。",
+      timeHorizon: "未来 3-9 个月",
+      whyNow: "文章对价值判断已经不再停留在对话体验，而是落在流程接入、执行闭环和控制能力上。",
+      signalsToWatch: ["产品是否增加审批节点", "案例是否从演示转向生产流程", "用户是否更重视可观测性"],
+      confidence: "high"
+    };
+  }
+
+  if (source.includes("consumer") || source.includes("companion") || normalizedText.includes("consumer")) {
+    return {
+      statement: "未来 6-12 个月，消费级 AI 的竞争会继续从模型新鲜感转向关系设计、留存和分发效率。",
+      timeHorizon: "未来 6-12 个月",
+      whyNow: "文章已经把产品价值落在持续互动和用户关系，而不是一次性功能体验。",
+      signalsToWatch: ["产品是否强化人格与记忆", "是否出现更强的分发渠道优势", "留存是否成为主要叙事"],
+      confidence: "medium"
+    };
+  }
+
+  if (source.includes("modelbusters") || normalizedText.includes("model")) {
+    return {
+      statement: "未来 6-12 个月，AI 行业会继续拉大模型层、应用层和分发层之间的分工与头部优势。",
+      timeHorizon: "未来 6-12 个月",
+      whyNow: "文章已经指出竞争不再只看模型能力，而会同时放大商业化执行和渠道差距。",
+      signalsToWatch: ["头部厂商优势是否继续扩大", "应用层是否更依赖渠道和分发", "模型能力差距是否被产品能力放大"],
+      confidence: "medium"
+    };
+  }
+
+  return {
+    statement: `未来 3-12 个月，${topicName} 赛道会从观点讨论进一步转向产品化落地与商业化验证。`,
+    timeHorizon: "未来 3-12 个月",
+    whyNow: "文章已经给出明确判断，说明市场开始从概念讨论进入更具体的执行阶段。",
+    signalsToWatch: ["是否出现更多真实落地案例", "投资动态是否继续印证该方向"],
+    confidence: "low"
+  };
+}
+
 export function extractJsonObject(text: string): string {
   const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const source = fencedMatch?.[1] ?? text;
@@ -373,6 +445,14 @@ function normalizeArticleAnalysisOutput(raw: unknown, article: ArticleGeneration
   const keyJudgements = normalizeStringArray(record.keyJudgements, 2, 5, fallback.keyJudgements);
   const normalizedTopics = normalizeStringArray(record.candidateTopics, 1, 4, candidateTopics);
   const evidenceLinks = normalizeEvidenceLinks(record.evidenceLinks, keyPoints, keyJudgements);
+  const fallbackOutlook = buildArticleOutlook({
+    sourceTitle: article.sourceTitle,
+    summary,
+    keyJudgements,
+    candidateTopics: normalizedTopics,
+    plainText: article.plainText
+  });
+  const rawOutlook = record.outlook && typeof record.outlook === "object" ? (record.outlook as Record<string, unknown>) : {};
   const zhTitle =
     typeof record.zhTitle === "string" && record.zhTitle.trim().length > 0
       ? record.zhTitle.trim()
@@ -388,6 +468,25 @@ function normalizeArticleAnalysisOutput(raw: unknown, article: ArticleGeneration
     summary,
     keyPoints,
     keyJudgements,
+    outlook: {
+      statement:
+        typeof rawOutlook.statement === "string" && rawOutlook.statement.trim().length > 0
+          ? rawOutlook.statement.trim()
+          : fallbackOutlook.statement,
+      timeHorizon:
+        typeof rawOutlook.timeHorizon === "string" && rawOutlook.timeHorizon.trim().length > 0
+          ? rawOutlook.timeHorizon.trim()
+          : fallbackOutlook.timeHorizon,
+      whyNow:
+        typeof rawOutlook.whyNow === "string" && rawOutlook.whyNow.trim().length > 0
+          ? rawOutlook.whyNow.trim()
+          : fallbackOutlook.whyNow,
+      signalsToWatch: normalizeStringArray(rawOutlook.signalsToWatch, 1, 4, fallbackOutlook.signalsToWatch),
+      confidence:
+        rawOutlook.confidence === "high" || rawOutlook.confidence === "medium" || rawOutlook.confidence === "low"
+          ? rawOutlook.confidence
+          : fallbackOutlook.confidence
+    },
     candidateTopics: normalizedTopics,
     evidenceLinks
   });
@@ -481,6 +580,13 @@ export class HeuristicAnalysisClient implements AnalysisClient {
       summary,
       keyPoints: normalizedKeyPoints,
       keyJudgements: normalizedJudgements,
+      outlook: buildArticleOutlook({
+        sourceTitle: article.sourceTitle,
+        summary,
+        keyJudgements: normalizedJudgements,
+        candidateTopics,
+        plainText: article.plainText
+      }),
       candidateTopics,
       evidenceLinks: normalizedKeyPoints.slice(0, 2).map((point, index) => ({
         claim: normalizedJudgements[index] ?? point,
@@ -617,6 +723,7 @@ export class VercelAiAnalysisClient implements AnalysisClient {
     const sharedPrompt = [
       "你是一个严谨的中文科技内容分析助手。",
       "请将 a16z 的原文文章分析为结构化中文结果，保持信息密度高，避免营销语气。",
+      "除摘要、要点和判断外，还需要给出一条未来推演：说明最可能发生的变化、你选择的时间跨度、为什么是现在、应该观察哪些信号，以及对应置信度。",
       "候选专题 slug 使用英文 kebab-case，例如 agent-workflows、consumer-ai。",
       `标题: ${article.sourceTitle}`,
       `类型: ${article.contentType}`,
@@ -634,7 +741,7 @@ export class VercelAiAnalysisClient implements AnalysisClient {
           jsonPrompt: [
             sharedPrompt,
             "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释、标题或代码块。",
-            '输出格式必须是 {"summary":"...","keyPoints":["..."],"keyJudgements":["..."],"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
+            '输出格式必须是 {"summary":"...","keyPoints":["..."],"keyJudgements":["..."],"outlook":{"statement":"...","timeHorizon":"未来 3-12 个月","whyNow":"...","signalsToWatch":["..."],"confidence":"high|medium|low"},"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
           ].join("\n")
         },
         (text) => {
