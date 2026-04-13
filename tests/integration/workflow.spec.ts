@@ -185,4 +185,34 @@ describe("content workflow", () => {
     expect(result.published).toBe(1);
     expect(updated?.reviewState).toBe("published");
   });
+
+  it("marks stale running jobs as failed when listing jobs", async () => {
+    const repo = new MemoryRepository();
+    const objectStore = new MemoryObjectStore();
+    const service = new ContentService(repo, objectStore, {
+      async analyzeArticle() {
+        throw new Error("not used");
+      },
+      async analyzeTopic() {
+        throw new Error("not used");
+      },
+      async analyzeDigest() {
+        throw new Error("not used");
+      }
+    });
+
+    const oldQueueJob = await repo.createJob("article-processing-cron");
+    const oldIngestionJob = await repo.createJob("weekly-ingestion");
+    (repo as any).jobs.get(oldQueueJob.id).startedAt = "2026-04-13T07:40:00.000Z";
+    (repo as any).jobs.get(oldIngestionJob.id).startedAt = "2026-04-13T04:00:00.000Z";
+
+    const jobs = await service.getJobs();
+    const refreshedQueueJob = jobs.find((job) => job.id === oldQueueJob.id);
+    const refreshedIngestionJob = jobs.find((job) => job.id === oldIngestionJob.id);
+
+    expect(refreshedQueueJob?.status).toBe("failed");
+    expect(refreshedQueueJob?.errorMessage).toBe("Timed out while running");
+    expect(refreshedIngestionJob?.status).toBe("failed");
+    expect(refreshedIngestionJob?.errorMessage).toBe("Timed out while running");
+  });
 });

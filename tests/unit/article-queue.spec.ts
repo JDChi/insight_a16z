@@ -47,6 +47,33 @@ describe("article queue", () => {
     expect(active?.id).toBe("fresh-job");
   });
 
+  it("treats old running queue jobs as stale", async () => {
+    const { findStaleQueueJobs } = await import("../../apps/api/src/lib/article-queue");
+    const referenceDate = new Date("2026-04-13T08:10:00.000Z");
+    const jobs: IngestionJob[] = [
+      {
+        id: "old-job",
+        jobType: "article-processing-cron",
+        status: "running",
+        startedAt: "2026-04-13T07:40:00.000Z",
+        endedAt: null,
+        errorMessage: null,
+        stats: {}
+      },
+      {
+        id: "fresh-job",
+        jobType: "article-processing-cron",
+        status: "running",
+        startedAt: "2026-04-13T08:05:00.000Z",
+        endedAt: null,
+        errorMessage: null,
+        stats: {}
+      }
+    ];
+
+    expect(findStaleQueueJobs(jobs, referenceDate).map((job) => job.id)).toEqual(["old-job"]);
+  });
+
   it("runs one recoverable batch with the cron defaults", async () => {
     getJobs.mockResolvedValue([]);
     processPendingArticles.mockResolvedValue({

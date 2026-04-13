@@ -8,6 +8,7 @@ import type {
 } from "@insight-a16z/core";
 
 import { AnalysisOutputRejectedError, createAnalysisClient, slugFromTopicName } from "./analysis";
+import { findStaleQueueJobs } from "./article-queue";
 import { clearMemoryObjectStore, createObjectStore, createRepository } from "./db";
 import type { Env } from "./env";
 import {
@@ -20,6 +21,7 @@ import {
   isPublishedWithinPastYear,
   parseArticleDocument
 } from "./ingestion";
+import { findStaleIngestionJobs } from "./ingestion-jobs";
 import type { ContentRepository, ObjectStore, ParsedArticle, StoredArticle } from "./types";
 import { endOfWeek, nowIso, startOfWeek, stringifyJson, unique } from "./utils";
 
@@ -106,6 +108,7 @@ export class ContentService {
   }
 
   async getJobs(): Promise<IngestionJob[]> {
+    await this.reconcileStaleJobs();
     return this.repo.listJobs();
   }
 
@@ -369,6 +372,19 @@ export class ContentService {
         "system@queue",
         "Recovered stale processing state"
       );
+    }
+  }
+
+  private async reconcileStaleJobs(): Promise<void> {
+    const jobs = await this.repo.listJobs();
+    const staleJobs = unique(
+      [...findStaleQueueJobs(jobs), ...findStaleIngestionJobs(jobs)].map((job) => job.id)
+    )
+      .map((id) => jobs.find((job) => job.id === id))
+      .filter(Boolean) as IngestionJob[];
+
+    for (const job of staleJobs) {
+      await this.repo.completeJob(job.id, "failed", job.stats, "Timed out while running");
     }
   }
 

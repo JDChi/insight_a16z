@@ -37,6 +37,17 @@ export function findActiveQueueJob(jobs: IngestionJob[], referenceDate = new Dat
   );
 }
 
+export function findStaleQueueJobs(jobs: IngestionJob[], referenceDate = new Date()): IngestionJob[] {
+  const now = referenceDate.getTime();
+
+  return jobs.filter((job) => {
+    if (!isQueueJob(job) || job.status !== "running") return false;
+    const startedAt = new Date(job.startedAt).getTime();
+    if (Number.isNaN(startedAt)) return false;
+    return now - startedAt > ACTIVE_QUEUE_JOB_WINDOW_MS;
+  });
+}
+
 function findLatestQueueFailure(jobs: IngestionJob[]): IngestionJob | null {
   return jobs.find((job) => isQueueJob(job) && job.status === "failed") ?? null;
 }

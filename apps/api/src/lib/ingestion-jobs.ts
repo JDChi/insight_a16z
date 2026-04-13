@@ -34,6 +34,17 @@ export function findActiveIngestionJob(jobs: IngestionJob[], referenceDate = new
   );
 }
 
+export function findStaleIngestionJobs(jobs: IngestionJob[], referenceDate = new Date()): IngestionJob[] {
+  const now = referenceDate.getTime();
+
+  return jobs.filter((job) => {
+    if (!isIngestionJob(job) || job.status !== "running") return false;
+    const startedAt = new Date(job.startedAt).getTime();
+    if (Number.isNaN(startedAt)) return false;
+    return now - startedAt > ACTIVE_INGESTION_JOB_WINDOW_MS;
+  });
+}
+
 export async function getIngestionStatus(env: Env): Promise<IngestionStatus> {
   const service = createContentService(env);
   const jobs = await service.getJobs();
