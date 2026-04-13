@@ -363,11 +363,19 @@ export class ContentService {
 
   private async reclaimStaleProcessingArticles(): Promise<void> {
     const cutoff = Date.now() - STALE_PROCESSING_ARTICLE_WINDOW_MS;
+    const currentArticles = await this.repo.listArticles();
+    const currentProcessingIds = new Set(
+      currentArticles.filter((article) => article.reviewState === "processing").map((article) => article.id)
+    );
     const reviewStates = await this.repo.listReviewStates();
     const staleArticleIds = unique(
       reviewStates
         .filter((record) => {
           if (record.entityType !== "article" || record.state !== "processing") {
+            return false;
+          }
+
+          if (!currentProcessingIds.has(record.entityId)) {
             return false;
           }
 

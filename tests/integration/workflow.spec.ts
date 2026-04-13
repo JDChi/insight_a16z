@@ -298,6 +298,64 @@ describe("content workflow", () => {
     expect(updated?.reviewState).toBe("published");
   });
 
+  it("does not reset already-published articles when they have old processing history", async () => {
+    const repo = new MemoryRepository();
+    const objectStore = new MemoryObjectStore();
+    await repo.seedFixtures();
+
+    const [target] = await repo.listArticles();
+    await repo.setReviewState({
+      entityType: "article",
+      entityId: target.id,
+      state: "processing",
+      reviewer: "system@analysis"
+    });
+    await repo.setReviewState({
+      entityType: "article",
+      entityId: target.id,
+      state: "published",
+      reviewer: "system@analysis"
+    });
+
+    vi.spyOn(repo, "listReviewStates").mockResolvedValue([
+      {
+        id: crypto.randomUUID(),
+        entityType: "article",
+        entityId: target.id,
+        state: "processing",
+        reviewer: "system@analysis",
+        reviewNote: null,
+        updatedAt: "2026-04-13T00:00:00.000Z"
+      },
+      {
+        id: crypto.randomUUID(),
+        entityType: "article",
+        entityId: target.id,
+        state: "published",
+        reviewer: "system@analysis",
+        reviewNote: null,
+        updatedAt: "2026-04-13T00:10:00.000Z"
+      }
+    ]);
+
+    const service = new ContentService(repo, objectStore, {
+      async analyzeArticle() {
+        throw new Error("not used");
+      },
+      async analyzeTopic() {
+        throw new Error("not used");
+      },
+      async analyzeDigest() {
+        throw new Error("not used");
+      }
+    });
+
+    await service.processPendingArticles({ limit: 1, rebuildTopics: false, rebuildDigest: false });
+    const updated = await repo.getArticleById(target.id);
+
+    expect(updated?.reviewState).toBe("published");
+  });
+
   it("marks stale running jobs as failed when listing jobs", async () => {
     const repo = new MemoryRepository();
     const objectStore = new MemoryObjectStore();
