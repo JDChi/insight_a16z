@@ -7,7 +7,7 @@ import type {
   TopicSummary
 } from "@insight-a16z/core";
 
-import { createAnalysisClient, slugFromTopicName } from "./analysis";
+import { AnalysisOutputRejectedError, createAnalysisClient, slugFromTopicName } from "./analysis";
 import { clearMemoryObjectStore, createObjectStore, createRepository } from "./db";
 import type { Env } from "./env";
 import {
@@ -186,13 +186,26 @@ export class ContentService {
         plainText
       });
 
+      const existingTitles = new Set(
+        (await this.repo.listArticles())
+          .filter((item) => item.id !== articleId)
+          .map((item) => item.zhTitle.trim())
+          .filter(Boolean)
+      );
+      const normalizedTitle = analysis.zhTitle.trim();
+
+      if (existingTitles.has(normalizedTitle)) {
+        throw new AnalysisOutputRejectedError(`Duplicate insight title: ${normalizedTitle}`);
+      }
+
       await this.repo.updateArticleAnalysis(articleId, analysis);
       await this.publish("article", articleId, "system@analysis");
     } catch (error) {
+      const rejected = error instanceof AnalysisOutputRejectedError;
       await this.setEntityState(
         "article",
         articleId,
-        "failed",
+        rejected ? "ingested" : "failed",
         "system@analysis",
         error instanceof Error ? error.message : undefined
       );
@@ -211,7 +224,7 @@ export class ContentService {
     rebuildTopics?: boolean;
     rebuildDigest?: boolean;
     includeFailed?: boolean;
-  }): Promise<{ jobId: string; processed: number; published: number; failed: number }> {
+  }): Promise<{ jobId: string; processed: number; published: number; failed: number; deferred: number }> {
     const job = await this.repo.createJob("article-processing");
 
     try {
@@ -230,6 +243,7 @@ export class ContentService {
       let processed = 0;
       let published = 0;
       let failed = 0;
+      let deferred = 0;
 
       for (const candidate of candidates) {
         try {
@@ -238,7 +252,12 @@ export class ContentService {
           if (updated.reviewState === "published") {
             published += 1;
           }
-        } catch {
+        } catch (error) {
+          if (error instanceof AnalysisOutputRejectedError) {
+            deferred += 1;
+            continue;
+          }
+
           failed += 1;
         }
       }
@@ -251,8 +270,8 @@ export class ContentService {
         await this.generateWeeklyDigest();
       }
 
-      await this.repo.completeJob(job.id, "succeeded", { processed, published, failed });
-      return { jobId: job.id, processed, published, failed };
+      await this.repo.completeJob(job.id, "succeeded", { processed, published, failed, deferred });
+      return { jobId: job.id, processed, published, failed, deferred };
     } catch (error) {
       await this.repo.completeJob(job.id, "failed", {}, error instanceof Error ? error.message : "Unknown error");
       throw error;

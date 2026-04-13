@@ -53,7 +53,7 @@ export function startArticleQueue(env: Env, options?: QueueOptions) {
 
   activeRun = (async () => {
     const service = createContentService(env);
-    const batchSize = Math.max(1, options?.batchSize ?? 1);
+    const batchSize = Math.max(1, options?.batchSize ?? 3);
     const maxBatches = Math.max(1, options?.maxBatches ?? 100);
     let batches = 0;
     let published = 0;

@@ -1,6 +1,7 @@
 import { resetArticleQueueState } from "../../apps/api/src/lib/article-queue";
-import { createContentService } from "../../apps/api/src/lib/service";
-import { resetMemoryStores } from "../../apps/api/src/lib/db";
+import { MemoryObjectStore, MemoryRepository, resetMemoryStores } from "../../apps/api/src/lib/db";
+import { AnalysisOutputRejectedError } from "../../apps/api/src/lib/analysis";
+import { ContentService, createContentService } from "../../apps/api/src/lib/service";
 
 describe("content workflow", () => {
   beforeEach(() => {
@@ -49,5 +50,69 @@ describe("content workflow", () => {
     expect(digest.topSignals.length).toBeGreaterThan(0);
     expect(digest.trendPredictions.length).toBeGreaterThan(0);
     expect(digest.reviewState).toBe("published");
+  });
+
+  it("returns unreasonable outputs to ingested and continues with later articles", async () => {
+    const repo = new MemoryRepository();
+    const objectStore = new MemoryObjectStore();
+    await repo.seedFixtures();
+
+    const articles = await repo.listArticles();
+    const firstTarget = articles[0];
+    const secondTarget = articles[1];
+
+    await repo.setReviewState({
+      entityType: "article",
+      entityId: firstTarget.id,
+      state: "ingested",
+      reviewer: "admin@local.test"
+    });
+    await repo.setReviewState({
+      entityType: "article",
+      entityId: secondTarget.id,
+      state: "ingested",
+      reviewer: "admin@local.test"
+    });
+
+    let calls = 0;
+    const fakeClient = {
+      async analyzeArticle() {
+        calls += 1;
+        if (calls === 1) {
+          throw new AnalysisOutputRejectedError("duplicate insight title");
+        }
+
+        return {
+          zhTitle: "第二篇新的洞察标题",
+          summary: "这是一段有效的中文摘要。",
+          keyPoints: ["要点一", "要点二", "要点三"],
+          keyJudgements: ["判断一", "判断二"],
+          candidateTopics: ["agent-workflows"],
+          evidenceLinks: [
+            { claim: "判断一", evidenceText: "要点一", sourceLocator: "paragraph:1" },
+            { claim: "判断二", evidenceText: "要点二", sourceLocator: "paragraph:2" }
+          ]
+        };
+      },
+      async analyzeTopic() {
+        throw new Error("not used");
+      },
+      async analyzeDigest() {
+        throw new Error("not used");
+      }
+    };
+
+    const service = new ContentService(repo, objectStore, fakeClient);
+    const result = await service.processPendingArticles({ limit: 2, rebuildTopics: false, rebuildDigest: false });
+
+    const firstUpdated = await repo.getArticleById(firstTarget.id);
+    const secondUpdated = await repo.getArticleById(secondTarget.id);
+
+    expect(result.processed).toBe(1);
+    expect(result.published).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(result.deferred).toBe(1);
+    expect(firstUpdated?.reviewState).toBe("ingested");
+    expect(secondUpdated?.reviewState).toBe("published");
   });
 });

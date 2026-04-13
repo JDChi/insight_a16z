@@ -32,8 +32,16 @@ interface ArticleGenerationInput {
   plainText: string;
 }
 
+export class AnalysisOutputRejectedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AnalysisOutputRejectedError";
+  }
+}
+
 const MAX_ARTICLE_PROMPT_CHARS = 12000;
 const MODEL_TIMEOUT_MS = 120000;
+const titleStopWords = new Set(["the", "a", "an", "and", "or", "for", "to", "of", "in", "on", "with", "by"]);
 
 function titleCaseTopic(topic: string): string {
   return topic
@@ -93,6 +101,63 @@ export function deriveInsightTitle(input: {
   }
 
   return firstJudgement.length > 0 ? firstJudgement : input.sourceTitle;
+}
+
+function extractSourceAwareTitleHint(sourceTitle: string, sourceUrl: string): string {
+  const normalizedTitle = sourceTitle
+    .replace(/\s*\|\s*(a16z|Andreessen Horowitz)\s*$/i, "")
+    .replace(/[—–:|]+/g, " ")
+    .replace(/[^\p{L}\p{N}\s$&+-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const investingMatch = normalizedTitle.match(/^investing in\s+(.+)$/i);
+  if (investingMatch?.[1]) {
+    return investingMatch[1].trim();
+  }
+
+  const words = normalizedTitle
+    .split(" ")
+    .filter((word) => word.length > 0)
+    .filter((word, index) => index === 0 || !titleStopWords.has(word.toLowerCase()));
+  const compact = words.slice(0, 6).join(" ").trim();
+  if (compact.length > 0) {
+    return compact;
+  }
+
+  const slugHint = sourceUrl
+    .split("/")
+    .filter(Boolean)
+    .pop()
+    ?.replace(/-/g, " ")
+    .trim();
+
+  return slugHint && slugHint.length > 0 ? slugHint : "来源文章";
+}
+
+export function ensureUniqueInsightTitle(
+  baseTitle: string,
+  input: { sourceTitle: string; sourceUrl: string; existingTitles: string[] }
+): string {
+  const normalizedExisting = new Set(input.existingTitles.map((title) => title.trim()).filter(Boolean));
+  const normalizedBase = baseTitle.trim();
+
+  if (!normalizedExisting.has(normalizedBase)) {
+    return normalizedBase;
+  }
+
+  const hint = extractSourceAwareTitleHint(input.sourceTitle, input.sourceUrl);
+  const withHint = `${normalizedBase} · ${hint}`.trim();
+  if (!normalizedExisting.has(withHint)) {
+    return withHint;
+  }
+
+  let suffix = 2;
+  while (normalizedExisting.has(`${withHint} ${suffix}`)) {
+    suffix += 1;
+  }
+
+  return `${withHint} ${suffix}`;
 }
 
 function buildChineseFallbackAnalysis(input: {
@@ -336,6 +401,10 @@ export function repairArticleAnalysisText(text: string, article: ArticleGenerati
   }
 }
 
+export function parseArticleAnalysisTextStrict(text: string, article: ArticleGenerationInput): ArticleAnalysis {
+  return normalizeArticleAnalysisOutput(JSON.parse(extractJsonObject(text)), article);
+}
+
 export function prepareArticlePlainTextForModel(plainText: string): string {
   const trimmed = plainText.trim();
   if (trimmed.length <= MAX_ARTICLE_PROMPT_CHARS) {
@@ -558,16 +627,28 @@ export class VercelAiAnalysisClient implements AnalysisClient {
 
     let parsed: ArticleAnalysis;
     try {
-      parsed = await this.generateStructured(articleAnalysisSchema, {
-        objectPrompt: sharedPrompt,
-        jsonPrompt: [
-          sharedPrompt,
-          "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释、标题或代码块。",
-          '输出格式必须是 {"summary":"...","keyPoints":["..."],"keyJudgements":["..."],"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
-        ].join("\n")
-      }, (text) => repairArticleAnalysisText(text, article));
-    } catch {
-      parsed = await new HeuristicAnalysisClient().analyzeArticle(article);
+      parsed = await this.generateStructured(
+        articleAnalysisSchema,
+        {
+          objectPrompt: sharedPrompt,
+          jsonPrompt: [
+            sharedPrompt,
+            "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释、标题或代码块。",
+            '输出格式必须是 {"summary":"...","keyPoints":["..."],"keyJudgements":["..."],"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
+          ].join("\n")
+        },
+        (text) => {
+          try {
+            return parseArticleAnalysisTextStrict(text, article);
+          } catch {
+            throw new AnalysisOutputRejectedError("Invalid article analysis output");
+          }
+        }
+      );
+    } catch (error) {
+      throw new AnalysisOutputRejectedError(
+        error instanceof Error ? error.message : "Article analysis output was rejected"
+      );
     }
 
     return {

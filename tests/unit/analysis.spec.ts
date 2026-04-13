@@ -1,5 +1,6 @@
 import {
   HeuristicAnalysisClient,
+  ensureUniqueInsightTitle,
   prepareArticlePlainTextForModel,
   repairArticleAnalysisText,
   withTimeout
@@ -51,5 +52,23 @@ describe("heuristic analysis client", () => {
     await expect(withTimeout(new Promise(() => undefined), 10, "slow-model")).rejects.toThrow(
       "slow-model timed out"
     );
+  });
+
+  it("disambiguates duplicated fallback titles with source-aware suffixes", () => {
+    const first = ensureUniqueInsightTitle("Agent 正在从演示能力转向真正可执行的工作流", {
+      sourceTitle: "Where Enterprises are Actually Adopting AI",
+      sourceUrl: "https://a16z.com/where-enterprises-are-actually-adopting-ai/",
+      existingTitles: []
+    });
+
+    const second = ensureUniqueInsightTitle("Agent 正在从演示能力转向真正可执行的工作流", {
+      sourceTitle: "The Top 100 Gen AI Consumer Apps — 6th Edition",
+      sourceUrl: "https://a16z.com/100-gen-ai-apps-6/",
+      existingTitles: [first]
+    });
+
+    expect(first).toBe("Agent 正在从演示能力转向真正可执行的工作流");
+    expect(second).not.toBe(first);
+    expect(second).toContain("Gen AI");
   });
 });
