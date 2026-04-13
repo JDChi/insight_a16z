@@ -41,10 +41,32 @@ export function createApp() {
 const app = createApp();
 
 export default {
-  fetch: app.fetch,
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const url = new URL(request.url);
+    if (env.SEED_FIXTURES === "false" && request.method === "GET" && !url.pathname.startsWith("/internal")) {
+      const service = createContentService(env);
+      const [articles, jobs] = await Promise.all([service.listAllArticles(), service.getJobs()]);
+      if (articles.length === 0 && jobs.length === 0) {
+        ctx.waitUntil(
+          (async () => {
+            await service.runWeeklyIngestion();
+            await runRecoverableQueueCycle(env, {
+              batchSize: 3,
+              rebuildTopics: true,
+              rebuildDigest: true,
+              jobType: "article-processing-bootstrap"
+            });
+          })()
+        );
+      }
+    }
+
+    return app.fetch(request, env, ctx);
+  },
   async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
     const service = createContentService(env);
-    if (event.cron === "0 2 * * 1") {
+    const articles = await service.listAllArticles();
+    if (event.cron === "0 2 * * 1" || articles.length === 0) {
       await service.runWeeklyIngestion();
     }
 

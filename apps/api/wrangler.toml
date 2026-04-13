@@ -4,16 +4,19 @@ compatibility_date = "2026-04-12"
 
 [vars]
 AUTH_MODE = "cloudflare-access"
-AI_MODEL = "gpt-4.1-mini"
+AI_COMPAT_MODE = "anthropic"
+AI_BASE_URL = "https://api.minimaxi.com/anthropic/v1"
+AI_MODEL = "MiniMax-M2.7-highspeed"
+SEED_FIXTURES = "false"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "insight-a16z"
-database_id = "replace-with-your-d1-id"
+database_id = "b631a201-6bd0-46f9-bd9a-b8d56a6e9aa9"
 
 [[r2_buckets]]
 binding = "CONTENT_BUCKET"
 bucket_name = "insight-a16z-content"
 
 [triggers]
-crons = ["0 2 * * 1"]
+crons = ["*/10 * * * *", "0 2 * * 1"]
