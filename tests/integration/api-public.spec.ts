@@ -1,4 +1,4 @@
-import { createApp } from "../../apps/api/src/index";
+import apiEntry, { createApp } from "../../apps/api/src/index";
 import { resetArticleQueueState } from "../../apps/api/src/lib/article-queue";
 import { resetMemoryStores } from "../../apps/api/src/lib/db";
 
@@ -34,5 +34,18 @@ describe("public API", () => {
 
     expect(response.status).toBe(200);
     expect(json).toEqual([]);
+  });
+
+  it("does not bootstrap ingestion from public GET requests", async () => {
+    const waitUntil = vi.fn();
+
+    const response = await apiEntry.fetch(
+      new Request("https://example.com/"),
+      { AUTH_MODE: "test", SEED_FIXTURES: "false" },
+      { waitUntil } as unknown as ExecutionContext
+    );
+
+    expect(response.status).toBe(200);
+    expect(waitUntil).not.toHaveBeenCalled();
   });
 });
