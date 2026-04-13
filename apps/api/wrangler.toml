@@ -19,4 +19,4 @@ binding = "CONTENT_BUCKET"
 bucket_name = "insight-a16z-content"
 
 [triggers]
-crons = ["*/10 * * * *", "0 2 * * 1"]
+crons = ["*/10 * * * *", "0 */8 * * *"]

@@ -61,6 +61,24 @@ internalRoutes.post("/ingestion/run", async (c) => {
   return c.json(ingestion);
 });
 
+internalRoutes.post("/bootstrap", async (c) => {
+  const service = createContentService(c.env);
+  const body = await c.req.json().catch(() => ({}));
+  const ingestion = await service.runWeeklyIngestion({
+    limit: typeof body.ingestionLimit === "number" ? body.ingestionLimit : undefined,
+    rebuildTopics: false,
+    rebuildDigest: false,
+    resetBeforeImport: false
+  });
+  const queue = await runRecoverableQueueCycle(c.env, {
+    batchSize: typeof body.processLimit === "number" ? body.processLimit : undefined,
+    rebuildTopics: body.rebuildTopics !== false,
+    rebuildDigest: body.rebuildDigest !== false,
+    jobType: "article-processing-bootstrap"
+  });
+  return c.json({ ingestion, queue });
+});
+
 internalRoutes.post("/reset", async (c) => {
   const service = createContentService(c.env);
   await service.clearAllContent();

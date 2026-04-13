@@ -34,8 +34,11 @@ export function toChineseReviewState(state: string): string {
 }
 
 export function toChineseJobType(jobType: string): string {
-  if (jobType === "weekly-ingestion") return "每周采集";
+  if (jobType === "weekly-ingestion") return "定时采集";
   if (jobType === "article-processing") return "文章处理";
+  if (jobType === "article-processing-cron") return "定时处理";
+  if (jobType === "article-processing-bootstrap") return "手动初始化";
+  if (jobType === "article-processing-scheduled-ingestion") return "采集后处理";
   if (jobType === "topic-rebuild") return "专题重建";
   if (jobType === "digest-generation") return "周报生成";
   return jobType;

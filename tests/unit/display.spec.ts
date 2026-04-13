@@ -16,8 +16,10 @@ describe("display helpers", () => {
     expect(toChineseReviewState("reviewing")).toBe("待审核");
     expect(toChineseReviewState("ingested")).toBe("待分析");
     expect(toChineseReviewState("processing")).toBe("分析中");
-    expect(toChineseJobType("weekly-ingestion")).toBe("每周采集");
+    expect(toChineseJobType("weekly-ingestion")).toBe("定时采集");
     expect(toChineseJobType("article-processing")).toBe("文章处理");
+    expect(toChineseJobType("article-processing-cron")).toBe("定时处理");
+    expect(toChineseJobType("article-processing-bootstrap")).toBe("手动初始化");
     expect(toChineseJobType("topic-rebuild")).toBe("专题重建");
     expect(toChineseConfidence("high")).toBe("高置信度");
     expect(toChineseConfidence("medium")).toBe("中置信度");

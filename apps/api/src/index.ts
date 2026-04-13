@@ -6,6 +6,9 @@ import { createContentService } from "./lib/service";
 import { internalRoutes } from "./routes/internal";
 import { publicRoutes } from "./routes/public";
 
+const INGESTION_CRON = "0 */8 * * *";
+const PROCESSING_CRON = "*/10 * * * *";
+
 export function createApp() {
   const app = new Hono<{ Bindings: Env }>();
 
@@ -46,8 +49,7 @@ export default {
   },
   async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
     const service = createContentService(env);
-    const articles = await service.listAllArticles();
-    if (event.cron === "0 2 * * 1" || articles.length === 0) {
+    if (event.cron === INGESTION_CRON) {
       await service.runWeeklyIngestion();
     }
 
@@ -55,7 +57,7 @@ export default {
       batchSize: 3,
       rebuildTopics: true,
       rebuildDigest: true,
-      jobType: event.cron === "0 2 * * 1" ? "article-processing-weekly" : "article-processing-cron"
+      jobType: event.cron === INGESTION_CRON ? "article-processing-scheduled-ingestion" : "article-processing-cron"
     });
   }
 };
