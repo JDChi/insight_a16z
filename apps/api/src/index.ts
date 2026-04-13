@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 
+import { runRecoverableQueueCycle } from "./lib/article-queue";
 import type { Env } from "./lib/env";
 import { createContentService } from "./lib/service";
 import { internalRoutes } from "./routes/internal";
@@ -41,10 +42,17 @@ const app = createApp();
 
 export default {
   fetch: app.fetch,
-  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
+  async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
     const service = createContentService(env);
-    await service.runWeeklyIngestion();
-    await service.rebuildAllTopics();
-    await service.generateWeeklyDigest();
+    if (event.cron === "0 2 * * 1") {
+      await service.runWeeklyIngestion();
+    }
+
+    await runRecoverableQueueCycle(env, {
+      batchSize: 3,
+      rebuildTopics: true,
+      rebuildDigest: true,
+      jobType: event.cron === "0 2 * * 1" ? "article-processing-weekly" : "article-processing-cron"
+    });
   }
 };

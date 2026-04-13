@@ -1,6 +1,6 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 
-import { getArticleQueueState, startArticleQueue } from "../lib/article-queue";
+import { getArticleQueueStatus, runRecoverableQueueCycle } from "../lib/article-queue";
 import type { Env } from "../lib/env";
 import { getAdminIdentity, requireAdmin } from "../lib/auth";
 import { createContentService } from "../lib/service";
@@ -8,14 +8,6 @@ import { createContentService } from "../lib/service";
 export const internalRoutes = new Hono<{ Bindings: Env }>();
 
 internalRoutes.use("*", requireAdmin());
-
-function attachBackgroundTask(c: Context<{ Bindings: Env }>, promise: Promise<void>) {
-  try {
-    c.executionCtx.waitUntil(promise);
-  } catch {
-    // `app.request()` tests and local adapters may not provide an ExecutionContext.
-  }
-}
 
 internalRoutes.get("/auth/me", async (c) => {
   return c.json({
@@ -54,7 +46,7 @@ internalRoutes.get("/review-states", async (c) => {
 });
 
 internalRoutes.get("/analysis/articles/status", async (c) => {
-  return c.json(getArticleQueueState());
+  return c.json(await getArticleQueueStatus(c.env));
 });
 
 internalRoutes.post("/ingestion/run", async (c) => {
@@ -66,22 +58,7 @@ internalRoutes.post("/ingestion/run", async (c) => {
     rebuildDigest: false,
     resetBeforeImport: body.resetBeforeImport === true
   });
-
-  const queue = startArticleQueue(c.env, {
-    batchSize: typeof body.batchSize === "number" ? body.batchSize : undefined,
-    rebuildTopics: body.rebuildTopics !== false,
-    rebuildDigest: body.rebuildDigest !== false
-  });
-  attachBackgroundTask(c, queue.promise);
-
-  return c.json(
-    {
-      ...ingestion,
-      queueStarted: queue.started,
-      queueRunning: queue.running
-    },
-    queue.started ? 202 : 200
-  );
+  return c.json(ingestion);
 });
 
 internalRoutes.post("/reset", async (c) => {
@@ -92,21 +69,12 @@ internalRoutes.post("/reset", async (c) => {
 
 internalRoutes.post("/analysis/articles/process", async (c) => {
   const body = await c.req.json().catch(() => ({}));
-  const queue = startArticleQueue(c.env, {
+  const queue = await runRecoverableQueueCycle(c.env, {
     batchSize: typeof body.limit === "number" ? body.limit : undefined,
     rebuildTopics: body.rebuildTopics !== false,
     rebuildDigest: body.rebuildDigest !== false
   });
-  attachBackgroundTask(c, queue.promise);
-
-  return c.json(
-    {
-      started: queue.started,
-      running: queue.running,
-      ...queue.state
-    },
-    queue.started ? 202 : 200
-  );
+  return c.json(queue, queue.started ? 200 : 202);
 });
 
 internalRoutes.post("/analysis/articles/:id", async (c) => {

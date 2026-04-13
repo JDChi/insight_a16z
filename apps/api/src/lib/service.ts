@@ -224,8 +224,9 @@ export class ContentService {
     rebuildTopics?: boolean;
     rebuildDigest?: boolean;
     includeFailed?: boolean;
+    jobType?: string;
   }): Promise<{ jobId: string; processed: number; published: number; failed: number; deferred: number }> {
-    const job = await this.repo.createJob("article-processing");
+    const job = await this.repo.createJob(options?.jobType ?? "article-processing");
 
     try {
       const limit = options?.limit ?? 3;

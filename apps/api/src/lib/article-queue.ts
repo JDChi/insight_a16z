@@ -1,100 +1,91 @@
+import type { IngestionJob } from "@insight-a16z/core";
+
 import type { Env } from "./env";
 import { createContentService } from "./service";
 
-type QueueOptions = {
+const ACTIVE_QUEUE_JOB_WINDOW_MS = 15 * 60 * 1000;
+
+type QueueCycleOptions = {
   batchSize?: number;
   rebuildTopics?: boolean;
   rebuildDigest?: boolean;
-  maxBatches?: number;
+  jobType?: string;
 };
 
-type QueueState = {
+type QueueStatus = {
   running: boolean;
+  activeJobId: string | null;
   startedAt: string | null;
   finishedAt: string | null;
   lastError: string | null;
 };
 
-const queueState: QueueState = {
-  running: false,
-  startedAt: null,
-  finishedAt: null,
-  lastError: null
-};
+function isQueueJob(job: IngestionJob) {
+  return job.jobType.startsWith("article-processing");
+}
 
-let activeRun: Promise<void> | null = null;
+export function findActiveQueueJob(jobs: IngestionJob[], referenceDate = new Date()): IngestionJob | null {
+  const now = referenceDate.getTime();
 
-export function getArticleQueueState(): QueueState {
-  return { ...queueState };
+  return (
+    jobs.find((job) => {
+      if (!isQueueJob(job) || job.status !== "running") return false;
+      const startedAt = new Date(job.startedAt).getTime();
+      if (Number.isNaN(startedAt)) return false;
+      return now - startedAt <= ACTIVE_QUEUE_JOB_WINDOW_MS;
+    }) ?? null
+  );
+}
+
+function findLatestQueueFailure(jobs: IngestionJob[]): IngestionJob | null {
+  return jobs.find((job) => isQueueJob(job) && job.status === "failed") ?? null;
+}
+
+export async function getArticleQueueStatus(env: Env): Promise<QueueStatus> {
+  const service = createContentService(env);
+  const jobs = await service.getJobs();
+  const active = findActiveQueueJob(jobs);
+  const lastFailure = findLatestQueueFailure(jobs);
+
+  return {
+    running: Boolean(active),
+    activeJobId: active?.id ?? null,
+    startedAt: active?.startedAt ?? null,
+    finishedAt: active?.endedAt ?? null,
+    lastError: active?.errorMessage ?? lastFailure?.errorMessage ?? null
+  };
 }
 
 export function resetArticleQueueState() {
-  queueState.running = false;
-  queueState.startedAt = null;
-  queueState.finishedAt = null;
-  queueState.lastError = null;
-  activeRun = null;
+  // No-op now that queue coordination is persisted via ingestion_jobs.
 }
 
-export function startArticleQueue(env: Env, options?: QueueOptions) {
-  if (activeRun) {
+export async function runRecoverableQueueCycle(env: Env, options?: QueueCycleOptions) {
+  const service = createContentService(env);
+  const jobs = await service.getJobs();
+  const active = findActiveQueueJob(jobs);
+
+  if (active) {
     return {
       started: false,
       running: true,
-      state: getArticleQueueState(),
-      promise: activeRun
+      activeJobId: active.id,
+      result: null
     };
   }
 
-  queueState.running = true;
-  queueState.startedAt = new Date().toISOString();
-  queueState.finishedAt = null;
-  queueState.lastError = null;
-
-  activeRun = (async () => {
-    const service = createContentService(env);
-    const batchSize = Math.max(1, options?.batchSize ?? 3);
-    const maxBatches = Math.max(1, options?.maxBatches ?? 100);
-    let batches = 0;
-    let published = 0;
-
-    while (batches < maxBatches) {
-      const result = await service.processPendingArticles({
-        limit: batchSize,
-        rebuildTopics: false,
-        rebuildDigest: false,
-        includeFailed: false
-      });
-      batches += 1;
-      published += result.published;
-
-      if (result.processed === 0) {
-        break;
-      }
-    }
-
-    if ((options?.rebuildTopics ?? true) && published > 0) {
-      await service.rebuildAllTopics();
-    }
-
-    if ((options?.rebuildDigest ?? true) && published > 0) {
-      await service.generateWeeklyDigest();
-    }
-  })()
-    .catch((error) => {
-      queueState.lastError = error instanceof Error ? error.message : String(error);
-      throw error;
-    })
-    .finally(() => {
-      queueState.running = false;
-      queueState.finishedAt = new Date().toISOString();
-      activeRun = null;
-    });
+  const result = await service.processPendingArticles({
+    limit: Math.max(1, options?.batchSize ?? 3),
+    rebuildTopics: options?.rebuildTopics ?? true,
+    rebuildDigest: options?.rebuildDigest ?? true,
+    includeFailed: false,
+    jobType: options?.jobType ?? "article-processing-cron"
+  });
 
   return {
     started: true,
-    running: true,
-    state: getArticleQueueState(),
-    promise: activeRun
+    running: false,
+    activeJobId: null,
+    result
   };
 }

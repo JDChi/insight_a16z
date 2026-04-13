@@ -59,20 +59,16 @@ describe("admin API", () => {
     expect(stateResponse.status).toBe(200);
 
     const processResponse = await app.request("/internal/analysis/articles/process", { method: "POST", headers }, adminEnv);
-    expect(processResponse.status).toBe(202);
-    expect(await processResponse.json()).toMatchObject({ started: true, running: true });
+    expect(processResponse.status).toBe(200);
+    expect(await processResponse.json()).toMatchObject({
+      started: true,
+      running: false,
+      result: { processed: 1, published: 1 }
+    });
 
-    let updated = null;
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      const updatedArticlesResponse = await app.request("/internal/articles", { headers }, adminEnv);
-      const updatedArticles = await updatedArticlesResponse.json();
-      updated = updatedArticles.find((item: { id: string }) => item.id === target.id) ?? null;
-      if (updated?.reviewState === "published") {
-        break;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    }
+    const updatedArticlesResponse = await app.request("/internal/articles", { headers }, adminEnv);
+    const updatedArticles = await updatedArticlesResponse.json();
+    const updated = updatedArticles.find((item: { id: string }) => item.id === target.id) ?? null;
 
     expect(updated?.reviewState).toBe("published");
   });
