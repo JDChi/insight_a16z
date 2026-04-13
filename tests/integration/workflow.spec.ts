@@ -22,6 +22,60 @@ describe("content workflow", () => {
     expect(updated.reviewState).toBe("published");
   });
 
+  it("records a completed analysis run with duration for a published article", async () => {
+    const repo = new MemoryRepository();
+    const objectStore = new MemoryObjectStore();
+    await repo.seedFixtures();
+
+    const [target] = await repo.listArticles();
+    await repo.setReviewState({
+      entityType: "article",
+      entityId: target.id,
+      state: "ingested",
+      reviewer: "admin@local.test"
+    });
+
+    const service = new ContentService(repo, objectStore, {
+      async analyzeArticle() {
+        return {
+          zhTitle: "带有耗时记录的洞察标题",
+          summary: "这是一段有效的中文摘要。",
+          keyPoints: ["要点一", "要点二", "要点三"],
+          keyJudgements: ["判断一", "判断二"],
+          outlook: {
+            statement: "未来 6-12 个月，这一赛道会继续深化产品化落地。",
+            timeHorizon: "未来 6-12 个月",
+            whyNow: "文章已经出现明确的商业化和采用信号。",
+            signalsToWatch: ["更多预算转向正式采购"],
+            confidence: "medium"
+          },
+          candidateTopics: ["agent-workflows"],
+          evidenceLinks: [
+            { claim: "判断一", evidenceText: "要点一", sourceLocator: "paragraph:1" },
+            { claim: "判断二", evidenceText: "要点二", sourceLocator: "paragraph:2" }
+          ]
+        };
+      },
+      async analyzeTopic() {
+        throw new Error("not used");
+      },
+      async analyzeDigest() {
+        throw new Error("not used");
+      }
+    });
+
+    await service.analyzeArticle(target.id);
+    const runs = await repo.listAnalysisRuns({ entityType: "article", entityId: target.id });
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      runType: "article-analysis",
+      status: "succeeded",
+      entityId: target.id
+    });
+    expect(runs[0]?.durationMs).not.toBeNull();
+  });
+
   it("processes queued ingested articles and republishes them", async () => {
     const service = createContentService({ AUTH_MODE: "test" });
     await service.seedFixtures();
@@ -121,6 +175,64 @@ describe("content workflow", () => {
     expect(result.deferred).toBe(1);
     expect(firstUpdated?.reviewState).toBe("ingested");
     expect(secondUpdated?.reviewState).toBe("published");
+  });
+
+  it("creates a new analysis run for each retry of the same article", async () => {
+    const repo = new MemoryRepository();
+    const objectStore = new MemoryObjectStore();
+    await repo.seedFixtures();
+
+    const [target] = await repo.listArticles();
+    await repo.setReviewState({
+      entityType: "article",
+      entityId: target.id,
+      state: "ingested",
+      reviewer: "admin@local.test"
+    });
+
+    let attempts = 0;
+    const service = new ContentService(repo, objectStore, {
+      async analyzeArticle() {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new AnalysisOutputRejectedError("duplicate insight title");
+        }
+
+        return {
+          zhTitle: "第二次才成功的洞察标题",
+          summary: "这是一段有效的中文摘要。",
+          keyPoints: ["要点一", "要点二", "要点三"],
+          keyJudgements: ["判断一", "判断二"],
+          outlook: {
+            statement: "未来 6-12 个月，这一方向会继续扩张。",
+            timeHorizon: "未来 6-12 个月",
+            whyNow: "市场和供给两端都在同步成熟。",
+            signalsToWatch: ["更多正式产品推出"],
+            confidence: "medium"
+          },
+          candidateTopics: ["agent-workflows"],
+          evidenceLinks: [
+            { claim: "判断一", evidenceText: "要点一", sourceLocator: "paragraph:1" },
+            { claim: "判断二", evidenceText: "要点二", sourceLocator: "paragraph:2" }
+          ]
+        };
+      },
+      async analyzeTopic() {
+        throw new Error("not used");
+      },
+      async analyzeDigest() {
+        throw new Error("not used");
+      }
+    });
+
+    await expect(service.analyzeArticle(target.id)).rejects.toThrow("duplicate insight title");
+    await service.analyzeArticle(target.id);
+
+    const runs = await repo.listAnalysisRuns({ entityType: "article", entityId: target.id });
+
+    expect(runs).toHaveLength(2);
+    expect(runs.map((run) => run.status).sort()).toEqual(["rejected", "succeeded"]);
+    expect(runs.every((run) => run.durationMs !== null)).toBe(true);
   });
 
   it("reclaims stale processing articles back into the queue", async () => {

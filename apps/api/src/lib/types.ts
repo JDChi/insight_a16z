@@ -47,6 +47,22 @@ export interface StoredTopic extends TopicDetail {
 
 export interface StoredDigest extends DigestDetail {}
 
+export interface AnalysisRunRecord {
+  id: string;
+  runType: string;
+  entityType: "article" | "topic" | "digest";
+  entityId: string;
+  status: "running" | "succeeded" | "failed" | "rejected";
+  model: string | null;
+  promptVersion: string;
+  inputR2Key: string | null;
+  outputR2Key: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  durationMs: number | null;
+}
+
 export interface ListFilters {
   q?: string;
   contentType?: string;
@@ -89,6 +105,27 @@ export interface ContentRepository {
   }): Promise<StoredDigest>;
   setReviewState(input: ReviewActionInput): Promise<ReviewRecord>;
   listReviewStates(): Promise<ReviewRecord[]>;
+  createAnalysisRun(input: {
+    runType: string;
+    entityType: AnalysisRunRecord["entityType"];
+    entityId: string;
+    model?: string | null;
+    promptVersion: string;
+    inputR2Key?: string | null;
+    outputR2Key?: string | null;
+  }): Promise<AnalysisRunRecord>;
+  completeAnalysisRun(
+    runId: string,
+    status: AnalysisRunRecord["status"],
+    input?: {
+      outputR2Key?: string | null;
+      errorMessage?: string | null;
+    }
+  ): Promise<AnalysisRunRecord>;
+  listAnalysisRuns(filters?: {
+    entityType?: AnalysisRunRecord["entityType"];
+    entityId?: string;
+  }): Promise<AnalysisRunRecord[]>;
   createJob(jobType: string): Promise<IngestionJob>;
   completeJob(jobId: string, status: "succeeded" | "failed", stats?: Record<string, number>, errorMessage?: string): Promise<void>;
   listJobs(): Promise<IngestionJob[]>;

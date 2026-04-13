@@ -27,6 +27,7 @@ import { endOfWeek, nowIso, startOfWeek, stringifyJson, unique } from "./utils";
 
 const DEFAULT_INGESTION_CONCURRENCY = 4;
 const STALE_PROCESSING_ARTICLE_WINDOW_MS = 30 * 60 * 1000;
+const ARTICLE_ANALYSIS_PROMPT_VERSION = "article-analysis-v1";
 
 type IngestionDiscoverySource = {
   url: string;
@@ -237,6 +238,14 @@ export class ContentService {
       throw new Error(`Article ${articleId} not found`);
     }
 
+    const analysisRun = await this.repo.createAnalysisRun({
+      runType: "article-analysis",
+      entityType: "article",
+      entityId: articleId,
+      promptVersion: ARTICLE_ANALYSIS_PROMPT_VERSION,
+      inputR2Key: article.cleanedR2Key
+    });
+
     await this.setEntityState("article", articleId, "processing", "system@analysis");
 
     const cleanedPayload = article.cleanedR2Key ? await this.objectStore.get(article.cleanedR2Key) : null;
@@ -267,8 +276,12 @@ export class ContentService {
 
       await this.repo.updateArticleAnalysis(articleId, analysis);
       await this.publish("article", articleId, "system@analysis");
+      await this.repo.completeAnalysisRun(analysisRun.id, "succeeded");
     } catch (error) {
       const rejected = error instanceof AnalysisOutputRejectedError;
+      await this.repo.completeAnalysisRun(analysisRun.id, rejected ? "rejected" : "failed", {
+        errorMessage: error instanceof Error ? error.message : "Unknown error"
+      });
       await this.setEntityState(
         "article",
         articleId,

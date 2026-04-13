@@ -21,6 +21,7 @@ import {
 
 import type { Env } from "./env";
 import type {
+  AnalysisRunRecord,
   ContentRepository,
   ListFilters,
   ObjectStore,
@@ -112,6 +113,7 @@ export class MemoryRepository implements ContentRepository {
   private topics = new Map<string, StoredTopicRecord>();
   private digests = new Map<string, StoredDigestRecord>();
   private reviewStates = new Map<string, ReviewRecord>();
+  private analysisRuns = new Map<string, AnalysisRunRecord>();
   private jobs = new Map<string, IngestionJob>();
 
   async seedFixtures(): Promise<void> {
@@ -176,6 +178,7 @@ export class MemoryRepository implements ContentRepository {
     this.topics.clear();
     this.digests.clear();
     this.reviewStates.clear();
+    this.analysisRuns.clear();
     this.jobs.clear();
   }
 
@@ -424,6 +427,75 @@ export class MemoryRepository implements ContentRepository {
 
   async listReviewStates(): Promise<ReviewRecord[]> {
     return [...this.reviewStates.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async createAnalysisRun(input: {
+    runType: string;
+    entityType: AnalysisRunRecord["entityType"];
+    entityId: string;
+    model?: string | null;
+    promptVersion: string;
+    inputR2Key?: string | null;
+    outputR2Key?: string | null;
+  }): Promise<AnalysisRunRecord> {
+    const createdAt = nowIso();
+    const run: AnalysisRunRecord = {
+      id: crypto.randomUUID(),
+      runType: input.runType,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      status: "running",
+      model: input.model ?? null,
+      promptVersion: input.promptVersion,
+      inputR2Key: input.inputR2Key ?? null,
+      outputR2Key: input.outputR2Key ?? null,
+      errorMessage: null,
+      createdAt,
+      updatedAt: createdAt,
+      durationMs: null
+    };
+    this.analysisRuns.set(run.id, run);
+    return run;
+  }
+
+  async completeAnalysisRun(
+    runId: string,
+    status: AnalysisRunRecord["status"],
+    input?: {
+      outputR2Key?: string | null;
+      errorMessage?: string | null;
+    }
+  ): Promise<AnalysisRunRecord> {
+    const current = this.analysisRuns.get(runId);
+    if (!current) {
+      throw new Error(`Analysis run ${runId} not found`);
+    }
+
+    const updatedAt = nowIso();
+    const durationMs = Math.max(0, Date.parse(updatedAt) - Date.parse(current.createdAt));
+    const updated: AnalysisRunRecord = {
+      ...current,
+      status,
+      outputR2Key: input?.outputR2Key ?? current.outputR2Key,
+      errorMessage: input?.errorMessage ?? null,
+      updatedAt,
+      durationMs
+    };
+    this.analysisRuns.set(runId, updated);
+    return updated;
+  }
+
+  async listAnalysisRuns(filters?: {
+    entityType?: AnalysisRunRecord["entityType"];
+    entityId?: string;
+  }): Promise<AnalysisRunRecord[]> {
+    return [...this.analysisRuns.values()]
+      .filter((run) => {
+        if (filters?.entityType && run.entityType !== filters.entityType) return false;
+        if (filters?.entityId && run.entityId !== filters.entityId) return false;
+        return true;
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async createJob(jobType: string): Promise<IngestionJob> {
@@ -876,6 +948,105 @@ class D1Repository implements ContentRepository {
     }));
   }
 
+  async createAnalysisRun(input: {
+    runType: string;
+    entityType: AnalysisRunRecord["entityType"];
+    entityId: string;
+    model?: string | null;
+    promptVersion: string;
+    inputR2Key?: string | null;
+    outputR2Key?: string | null;
+  }): Promise<AnalysisRunRecord> {
+    const run: AnalysisRunRecord = {
+      id: crypto.randomUUID(),
+      runType: input.runType,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      status: "running",
+      model: input.model ?? null,
+      promptVersion: input.promptVersion,
+      inputR2Key: input.inputR2Key ?? null,
+      outputR2Key: input.outputR2Key ?? null,
+      errorMessage: null,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      durationMs: null
+    };
+
+    await this.db
+      .prepare(
+        `INSERT INTO analysis_runs (
+          id, run_type, entity_type, entity_id, status, model, prompt_version, input_r2_key, output_r2_key,
+          error_message, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        run.id,
+        run.runType,
+        run.entityType,
+        run.entityId,
+        run.status,
+        run.model,
+        run.promptVersion,
+        run.inputR2Key,
+        run.outputR2Key,
+        run.errorMessage,
+        run.createdAt,
+        run.updatedAt
+      )
+      .run();
+
+    return run;
+  }
+
+  async completeAnalysisRun(
+    runId: string,
+    status: AnalysisRunRecord["status"],
+    input?: {
+      outputR2Key?: string | null;
+      errorMessage?: string | null;
+    }
+  ): Promise<AnalysisRunRecord> {
+    const updatedAt = nowIso();
+    await this.db
+      .prepare(
+        `UPDATE analysis_runs
+         SET status = ?, output_r2_key = COALESCE(?, output_r2_key), error_message = ?, updated_at = ?
+         WHERE id = ?`
+      )
+      .bind(status, input?.outputR2Key ?? null, input?.errorMessage ?? null, updatedAt, runId)
+      .run();
+
+    const row = await this.db.prepare("SELECT * FROM analysis_runs WHERE id = ?").bind(runId).first<Record<string, string>>();
+    if (!row) {
+      throw new Error(`Analysis run ${runId} not found`);
+    }
+    return this.rowToAnalysisRun(row);
+  }
+
+  async listAnalysisRuns(filters?: {
+    entityType?: AnalysisRunRecord["entityType"];
+    entityId?: string;
+  }): Promise<AnalysisRunRecord[]> {
+    const clauses: string[] = [];
+    const bindings: string[] = [];
+    if (filters?.entityType) {
+      clauses.push("entity_type = ?");
+      bindings.push(filters.entityType);
+    }
+    if (filters?.entityId) {
+      clauses.push("entity_id = ?");
+      bindings.push(filters.entityId);
+    }
+
+    const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+    const rows = await this.db
+      .prepare(`SELECT * FROM analysis_runs ${whereClause} ORDER BY created_at DESC`)
+      .bind(...bindings)
+      .all<Record<string, string>>();
+    return (rows.results ?? []).map((row) => this.rowToAnalysisRun(row));
+  }
+
   async createJob(jobType: string): Promise<IngestionJob> {
     const job: IngestionJob = {
       id: crypto.randomUUID(),
@@ -962,6 +1133,29 @@ class D1Repository implements ContentRepository {
       rawR2Key: row.raw_r2_key ?? null,
       cleanedR2Key: row.cleaned_r2_key ?? null,
       publishedOn: row.published_on ?? null
+    };
+  }
+
+  private rowToAnalysisRun(row: Record<string, string>): AnalysisRunRecord {
+    const createdAt = row.created_at;
+    const updatedAt = row.updated_at;
+    const durationMs =
+      row.status === "running" ? null : Math.max(0, Date.parse(updatedAt) - Date.parse(createdAt));
+
+    return {
+      id: row.id,
+      runType: row.run_type,
+      entityType: row.entity_type as AnalysisRunRecord["entityType"],
+      entityId: row.entity_id,
+      status: row.status as AnalysisRunRecord["status"],
+      model: row.model ?? null,
+      promptVersion: row.prompt_version,
+      inputR2Key: row.input_r2_key ?? null,
+      outputR2Key: row.output_r2_key ?? null,
+      errorMessage: row.error_message ?? null,
+      createdAt,
+      updatedAt,
+      durationMs
     };
   }
 
