@@ -2,6 +2,13 @@ import * as cheerio from "cheerio";
 
 import type { IngestionCandidate, ParsedArticle } from "./types";
 
+type CheerioNode = {
+  type?: string;
+  data?: string | null;
+  tagName?: string;
+  parent?: { tagName?: string } | null;
+};
+
 const ignoredTitles = new Set([
   "Portfolio",
   "Team",
@@ -20,6 +27,7 @@ const ignoredTitles = new Set([
 ]);
 
 const titleSuffixPattern = /\s*\|\s*(a16z|Andreessen Horowitz)\s*$/i;
+const headingTags = new Set(["h1", "h2", "h3", "h4", "h5", "h6"]);
 
 function normalizeContentType(raw: string | undefined): "Article" | "Investment News" | null {
   const value = (raw ?? "").trim().toLowerCase();
@@ -30,6 +38,26 @@ function normalizeContentType(raw: string | undefined): "Article" | "Investment 
 
 function normalizeSourceTitle(raw: string | undefined): string {
   return (raw ?? "").trim().replace(titleSuffixPattern, "").trim();
+}
+
+function normalizeCandidateUrl(url: string, baseUrl = "https://a16z.com"): string {
+  const normalized = new URL(url, baseUrl);
+  normalized.hash = "";
+  if (!normalized.pathname.endsWith("/")) {
+    normalized.pathname = `${normalized.pathname}/`;
+  }
+  return normalized.toString();
+}
+
+function directText($: cheerio.CheerioAPI, element: CheerioNode): string {
+  return $(element as unknown as string)
+    .contents()
+    .toArray()
+    .filter((node) => node.type === "text")
+    .map((node) => node.data ?? "")
+    .join(" ")
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 function extractPublishedAtFromStructuredData($: cheerio.CheerioAPI): string | undefined {
@@ -89,7 +117,7 @@ export function collectArticleCandidates(html: string, baseUrl = "https://a16z.c
     if (!href) return;
     if (href.includes(" ")) return;
 
-    const url = new URL(href, baseUrl).toString();
+    const url = normalizeCandidateUrl(href, baseUrl);
     const pathname = new URL(url).pathname;
     if (pathname.includes("%20")) return;
     if (!pathname.endsWith("/")) return;
@@ -134,6 +162,72 @@ export function collectArticleCandidates(html: string, baseUrl = "https://a16z.c
   });
 
   return [...candidates.values()].filter((candidate) => Boolean(candidate.contentType));
+}
+
+export function collectSitemapAiCandidates(html: string, baseUrl = "https://a16z.com"): IngestionCandidate[] {
+  const $ = cheerio.load(html);
+  const candidates = new Map<string, IngestionCandidate>();
+  let inPostsByCategory = false;
+  let inAiSection = false;
+
+  $("main *").each((_, node) => {
+    const element = node as CheerioNode;
+    const tagName = element.tagName?.toLowerCase() ?? "";
+    const text = directText($, element);
+
+    if (headingTags.has(tagName) && text === "Posts by Category") {
+      inPostsByCategory = true;
+      return;
+    }
+
+    if (!inPostsByCategory) return;
+
+    if (headingTags.has(tagName) && text === "AI") {
+      inAiSection = true;
+      return;
+    }
+
+    if (inAiSection && headingTags.has(tagName) && text === "All Posts") {
+      inAiSection = false;
+      return false;
+    }
+
+    if (!inAiSection || tagName !== "a") return;
+
+    const href = $(element as unknown as string).attr("href");
+    const title = $(element as unknown as string).text().trim();
+    if (!href || !title) return;
+
+    const url = normalizeCandidateUrl(href, baseUrl);
+    if (!/^https:\/\/a16z\.com\//.test(url)) return;
+    if (url.includes("/podcast/") || url.includes("/video/")) return;
+
+    const contentType =
+      url.includes("/announcement/") || /^investing in/i.test(title) ? "Investment News" : "Article";
+    candidates.set(url, {
+      url,
+      title,
+      contentType
+    });
+  });
+
+  return [...candidates.values()];
+}
+
+export function dedupeCandidatesByUrl(candidates: IngestionCandidate[]): IngestionCandidate[] {
+  const deduped = new Map<string, IngestionCandidate>();
+
+  for (const candidate of candidates) {
+    const normalizedUrl = normalizeCandidateUrl(candidate.url);
+    if (!deduped.has(normalizedUrl)) {
+      deduped.set(normalizedUrl, {
+        ...candidate,
+        url: normalizedUrl
+      });
+    }
+  }
+
+  return [...deduped.values()];
 }
 
 export function filterTargetContentType(candidates: IngestionCandidate[]): IngestionCandidate[] {

@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import {
   collectArticleCandidates,
+  collectSitemapAiCandidates,
+  dedupeCandidatesByUrl,
   filterTargetContentType,
   isLikelyEditorialArticle,
   isPublishedWithinPastYear,
@@ -104,6 +106,60 @@ describe("ingestion", () => {
 
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.url).toBe("https://a16z.com/where-enterprises-are-actually-adopting-ai/");
+  });
+
+  it("collects AI sitemap links from the dedicated sitemap section", () => {
+    const html = `
+      <html>
+        <body>
+          <main>
+            <h2>Posts by Category</h2>
+            <h3>AI</h3>
+            <ul>
+              <li><a href="https://a16z.com/retention-is-all-you-need/">Retention Is All You Need</a></li>
+              <li><a href="https://a16z.com/ai-will-supercharge-modelbusters/">AI Will Supercharge Modelbusters</a></li>
+              <li><a href="https://a16z.com/podcast/some-show/">Podcast Episode</a></li>
+            </ul>
+            <h3>All Posts</h3>
+            <ul>
+              <li><a href="https://a16z.com/some-other-post/">Some Other Post</a></li>
+            </ul>
+          </main>
+        </body>
+      </html>
+    `;
+
+    const candidates = collectSitemapAiCandidates(html);
+
+    expect(candidates).toHaveLength(2);
+    expect(candidates.map((item) => item.url)).toEqual([
+      "https://a16z.com/retention-is-all-you-need/",
+      "https://a16z.com/ai-will-supercharge-modelbusters/"
+    ]);
+  });
+
+  it("dedupes candidates by canonicalized url while keeping the first source", () => {
+    const deduped = dedupeCandidatesByUrl([
+      {
+        url: "https://a16z.com/retention-is-all-you-need/",
+        title: "Retention Is All You Need",
+        contentType: "Article"
+      },
+      {
+        url: "https://a16z.com/retention-is-all-you-need/",
+        title: "Retention Is All You Need Duplicate",
+        contentType: "Article"
+      },
+      {
+        url: "https://a16z.com/announcement/investing-in-gitbutler/",
+        title: "Investing in GitButler",
+        contentType: "Investment News"
+      }
+    ]);
+
+    expect(deduped).toHaveLength(2);
+    expect(deduped[0]?.title).toBe("Retention Is All You Need");
+    expect(deduped[1]?.url).toBe("https://a16z.com/announcement/investing-in-gitbutler/");
   });
 
   it("extracts publish dates from structured data when meta tags are missing", () => {

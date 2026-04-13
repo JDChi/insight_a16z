@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import { runRecoverableQueueCycle } from "./lib/article-queue";
 import type { Env } from "./lib/env";
+import { getIngestionStatus } from "./lib/ingestion-jobs";
 import { createContentService } from "./lib/service";
 import { internalRoutes } from "./routes/internal";
 import { publicRoutes } from "./routes/public";
@@ -48,9 +49,12 @@ export default {
     return app.fetch(request, env, ctx);
   },
   async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
-    const service = createContentService(env);
     if (event.cron === INGESTION_CRON) {
-      await service.runWeeklyIngestion();
+      const ingestionStatus = await getIngestionStatus(env);
+      if (!ingestionStatus.running) {
+        const service = createContentService(env);
+        await service.runWeeklyIngestion();
+      }
     }
 
     await runRecoverableQueueCycle(env, {

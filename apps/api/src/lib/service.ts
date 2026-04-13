@@ -12,6 +12,8 @@ import { clearMemoryObjectStore, createObjectStore, createRepository } from "./d
 import type { Env } from "./env";
 import {
   collectArticleCandidates,
+  collectSitemapAiCandidates,
+  dedupeCandidatesByUrl,
   fetchText,
   filterTargetContentType,
   isLikelyEditorialArticle,
@@ -20,6 +22,43 @@ import {
 } from "./ingestion";
 import type { ContentRepository, ObjectStore, ParsedArticle, StoredArticle } from "./types";
 import { endOfWeek, nowIso, startOfWeek, stringifyJson, unique } from "./utils";
+
+const DEFAULT_INGESTION_CONCURRENCY = 4;
+
+type IngestionDiscoverySource = {
+  url: string;
+  kind: "listing" | "sitemap";
+};
+
+function buildDiscoverySources(): IngestionDiscoverySource[] {
+  return [
+    { url: "https://a16z.com/sitemap/", kind: "sitemap" },
+    { url: "https://a16z.com/ai/", kind: "listing" },
+    ...Array.from({ length: 12 }, (_, index) => ({
+      url: index === 0 ? "https://a16z.com/category/ai/" : `https://a16z.com/category/ai/page/${index + 1}/`,
+      kind: "listing" as const
+    }))
+  ];
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<void>
+): Promise<void> {
+  let nextIndex = 0;
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        await worker(items[currentIndex] as T, currentIndex);
+      }
+    })
+  );
+}
 
 export class ContentService {
   constructor(
@@ -90,57 +129,75 @@ export class ContentService {
         await this.clearAllContent();
       }
 
-      const listingUrls = [
-        "https://a16z.com/ai/",
-        ...Array.from({ length: 12 }, (_, index) =>
-          index === 0 ? "https://a16z.com/category/ai/" : `https://a16z.com/category/ai/page/${index + 1}/`
-        )
-      ];
-
       let discovered = 0;
+      let deduped = 0;
+      let eligible = 0;
       let ingested = 0;
       let analyzed = 0;
       let published = 0;
+      let alreadyKnown = 0;
+      let fetchFailed = 0;
+      let parseFailed = 0;
+      let invalidCandidates = 0;
       const limit = options?.limit ?? 300;
-      const seen = new Set<string>();
+      const discoveryCandidates = [];
 
-      for (const listingUrl of listingUrls) {
+      for (const source of buildDiscoverySources()) {
         let html = "";
         try {
-          html = await fetchText(listingUrl);
+          html = await fetchText(source.url);
         } catch {
           continue;
         }
-        const candidates = filterTargetContentType(collectArticleCandidates(html));
+        const candidates =
+          source.kind === "sitemap"
+            ? collectSitemapAiCandidates(html)
+            : filterTargetContentType(collectArticleCandidates(html));
         discovered += candidates.length;
-
-        for (const candidate of candidates) {
-          if (seen.has(candidate.url)) continue;
-          seen.add(candidate.url);
-          if (ingested >= limit) break;
-
-          let articleHtml = "";
-          try {
-            articleHtml = await fetchText(candidate.url);
-          } catch {
-            continue;
-          }
-
-          const parsed = parseArticleDocument(articleHtml, candidate.url);
-          if (!isLikelyEditorialArticle(parsed)) {
-            continue;
-          }
-          if (!isPublishedWithinPastYear(parsed.publishedAt)) {
-            continue;
-          }
-          const article = await this.persistParsedArticle(parsed, articleHtml);
-          ingested += 1;
-        }
-
-        if (ingested >= limit) {
-          break;
-        }
+        discoveryCandidates.push(...candidates);
       }
+
+      const uniqueCandidates = dedupeCandidatesByUrl(discoveryCandidates);
+      deduped = uniqueCandidates.length;
+      const existingUrls = new Set((await this.repo.listArticles()).map((article) => article.sourceUrl));
+      const candidatesToFetch = uniqueCandidates.filter((candidate) => {
+        if (existingUrls.has(candidate.url)) {
+          alreadyKnown += 1;
+          return false;
+        }
+        return true;
+      });
+      eligible = candidatesToFetch.length;
+
+      await runWithConcurrency(candidatesToFetch, DEFAULT_INGESTION_CONCURRENCY, async (candidate) => {
+        if (ingested >= limit) {
+          return;
+        }
+
+        let articleHtml = "";
+        try {
+          articleHtml = await fetchText(candidate.url);
+        } catch {
+          fetchFailed += 1;
+          return;
+        }
+
+        let parsed: ParsedArticle;
+        try {
+          parsed = parseArticleDocument(articleHtml, candidate.url);
+        } catch {
+          parseFailed += 1;
+          return;
+        }
+
+        if (!isLikelyEditorialArticle(parsed) || !isPublishedWithinPastYear(parsed.publishedAt)) {
+          invalidCandidates += 1;
+          return;
+        }
+
+        await this.persistParsedArticle(parsed, articleHtml);
+        ingested += 1;
+      });
 
       if (options?.rebuildTopics) {
         await this.rebuildAllTopics();
@@ -152,7 +209,13 @@ export class ContentService {
 
       await this.repo.completeJob(job.id, "succeeded", {
         discovered,
+        deduped,
+        eligible,
         ingested,
+        alreadyKnown,
+        fetchFailed,
+        parseFailed,
+        invalidCandidates,
         analyzed,
         published
       });

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const getJobs = vi.fn();
 const runWeeklyIngestion = vi.fn();
 const runRecoverableQueueCycle = vi.fn();
 
 vi.mock("../../apps/api/src/lib/service", () => ({
   createContentService: () => ({
+    getJobs,
     runWeeklyIngestion
   })
 }));
@@ -16,6 +18,7 @@ vi.mock("../../apps/api/src/lib/article-queue", () => ({
 describe("worker scheduler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getJobs.mockResolvedValue([]);
   });
 
   it("runs ingestion and queue processing on the 8-hour cron", async () => {

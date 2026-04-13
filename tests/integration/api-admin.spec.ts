@@ -1,8 +1,8 @@
 import { createApp } from "../../apps/api/src/index";
-import * as articleQueue from "../../apps/api/src/lib/article-queue";
 import { ContentService } from "../../apps/api/src/lib/service";
 import { resetArticleQueueState } from "../../apps/api/src/lib/article-queue";
 import { resetMemoryStores } from "../../apps/api/src/lib/db";
+import * as ingestionJobs from "../../apps/api/src/lib/ingestion-jobs";
 
 const adminEnv = {
   AUTH_MODE: "cloudflare-access" as const,
@@ -75,21 +75,10 @@ describe("admin API", () => {
     expect(updated?.reviewState).toBe("published");
   });
 
-  it("runs bootstrap ingestion and one processing batch from the admin API", async () => {
+  it("runs bootstrap ingestion asynchronously from the admin API", async () => {
     const ingestionSpy = vi
       .spyOn(ContentService.prototype, "runWeeklyIngestion")
       .mockResolvedValue({ jobId: "ingestion-job", ingested: 12, analyzed: 0, published: 0 });
-    const queueSpy = vi.spyOn(articleQueue, "runRecoverableQueueCycle").mockResolvedValue({
-      started: true,
-      running: false,
-      result: {
-        jobId: "queue-job",
-        processed: 3,
-        published: 2,
-        failed: 0,
-        deferred: 1
-      }
-    });
 
     const app = createApp();
     const headers = {
@@ -104,7 +93,7 @@ describe("admin API", () => {
           ...headers,
           "content-type": "application/json"
         },
-        body: JSON.stringify({ ingestionLimit: 50, processLimit: 2 })
+        body: JSON.stringify({ ingestionLimit: 50 })
       }),
       adminEnv,
       { waitUntil } as unknown as ExecutionContext
@@ -114,8 +103,7 @@ describe("admin API", () => {
     expect(await response.json()).toMatchObject({
       accepted: true,
       mode: "async",
-      ingestionLimit: 50,
-      processLimit: 2
+      ingestionLimit: 50
     });
     expect(waitUntil).toHaveBeenCalledTimes(1);
     expect(ingestionSpy).toHaveBeenCalledWith({
@@ -124,32 +112,14 @@ describe("admin API", () => {
       rebuildDigest: false,
       resetBeforeImport: false
     });
-    expect(queueSpy).toHaveBeenCalledWith(adminEnv, {
-      batchSize: 2,
-      rebuildTopics: true,
-      rebuildDigest: true,
-      jobType: "article-processing-bootstrap"
-    });
 
     ingestionSpy.mockRestore();
-    queueSpy.mockRestore();
   });
 
   it("allows bootstrap with x-admin-token but keeps other admin routes protected", async () => {
     const ingestionSpy = vi
       .spyOn(ContentService.prototype, "runWeeklyIngestion")
       .mockResolvedValue({ jobId: "ingestion-job", ingested: 1, analyzed: 0, published: 0 });
-    const queueSpy = vi.spyOn(articleQueue, "runRecoverableQueueCycle").mockResolvedValue({
-      started: true,
-      running: false,
-      result: {
-        jobId: "queue-job",
-        processed: 1,
-        published: 1,
-        failed: 0,
-        deferred: 0
-      }
-    });
 
     const app = createApp();
     const bootstrapResponse = await app.request(
@@ -160,7 +130,7 @@ describe("admin API", () => {
           "content-type": "application/json",
           "x-admin-token": "secret-token"
         },
-        body: JSON.stringify({ ingestionLimit: 5, processLimit: 1 })
+        body: JSON.stringify({ ingestionLimit: 5 })
       },
       {
         ...adminEnv,
@@ -169,6 +139,9 @@ describe("admin API", () => {
     );
 
     expect(bootstrapResponse.status).toBe(200);
+    expect(await bootstrapResponse.json()).toMatchObject({
+      ingestion: { ingested: 1 }
+    });
 
     const articlesResponse = await app.request(
       "/internal/articles",
@@ -182,6 +155,44 @@ describe("admin API", () => {
     expect(articlesResponse.status).toBe(401);
 
     ingestionSpy.mockRestore();
-    queueSpy.mockRestore();
+  });
+
+  it("skips bootstrap when an ingestion job is already active", async () => {
+    const activeSpy = vi.spyOn(ingestionJobs, "getIngestionStatus").mockResolvedValue({
+      running: true,
+      activeJobId: "active-ingestion",
+      startedAt: "2026-04-13T08:05:00.000Z",
+      finishedAt: null,
+      lastError: null
+    });
+    const ingestionSpy = vi.spyOn(ContentService.prototype, "runWeeklyIngestion");
+
+    const app = createApp();
+    const response = await app.request(
+      "/internal/bootstrap",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-token": "secret-token"
+        },
+        body: JSON.stringify({ ingestionLimit: 5 })
+      },
+      {
+        ...adminEnv,
+        ADMIN_TRIGGER_TOKEN: "secret-token"
+      }
+    );
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({
+      accepted: false,
+      reason: "ingestion-already-running",
+      activeJobId: "active-ingestion"
+    });
+    expect(ingestionSpy).not.toHaveBeenCalled();
+
+    activeSpy.mockRestore();
+    ingestionSpy.mockRestore();
   });
 });
