@@ -122,4 +122,67 @@ describe("content workflow", () => {
     expect(firstUpdated?.reviewState).toBe("ingested");
     expect(secondUpdated?.reviewState).toBe("published");
   });
+
+  it("reclaims stale processing articles back into the queue", async () => {
+    const repo = new MemoryRepository();
+    const objectStore = new MemoryObjectStore();
+    await repo.seedFixtures();
+
+    const [target] = await repo.listArticles();
+    await repo.setReviewState({
+      entityType: "article",
+      entityId: target.id,
+      state: "processing",
+      reviewer: "system@analysis"
+    });
+
+    vi.spyOn(repo, "listReviewStates").mockResolvedValue([
+      {
+        id: crypto.randomUUID(),
+        entityType: "article",
+        entityId: target.id,
+        state: "processing",
+        reviewer: "system@analysis",
+        reviewNote: null,
+        updatedAt: "2026-04-13T00:00:00.000Z"
+      }
+    ]);
+
+    const fakeClient = {
+      async analyzeArticle() {
+        return {
+          zhTitle: "恢复后的洞察标题",
+          summary: "这是一段恢复后的中文摘要。",
+          keyPoints: ["要点一", "要点二", "要点三"],
+          keyJudgements: ["判断一", "判断二"],
+          outlook: {
+            statement: "未来 6-12 个月，这个方向会继续强化产品化整合。",
+            timeHorizon: "未来 6-12 个月",
+            whyNow: "文章已经显示需求和产品能力正在同步成熟。",
+            signalsToWatch: ["更多成熟产品推出正式商业化版本"],
+            confidence: "medium"
+          },
+          candidateTopics: ["agent-workflows"],
+          evidenceLinks: [
+            { claim: "判断一", evidenceText: "要点一", sourceLocator: "paragraph:1" },
+            { claim: "判断二", evidenceText: "要点二", sourceLocator: "paragraph:2" }
+          ]
+        };
+      },
+      async analyzeTopic() {
+        throw new Error("not used");
+      },
+      async analyzeDigest() {
+        throw new Error("not used");
+      }
+    };
+
+    const service = new ContentService(repo, objectStore, fakeClient);
+    const result = await service.processPendingArticles({ limit: 1, rebuildTopics: false, rebuildDigest: false });
+    const updated = await repo.getArticleById(target.id);
+
+    expect(result.processed).toBe(1);
+    expect(result.published).toBe(1);
+    expect(updated?.reviewState).toBe("published");
+  });
 });

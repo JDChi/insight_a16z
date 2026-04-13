@@ -24,6 +24,7 @@ import type { ContentRepository, ObjectStore, ParsedArticle, StoredArticle } fro
 import { endOfWeek, nowIso, startOfWeek, stringifyJson, unique } from "./utils";
 
 const DEFAULT_INGESTION_CONCURRENCY = 4;
+const STALE_PROCESSING_ARTICLE_WINDOW_MS = 30 * 60 * 1000;
 
 type IngestionDiscoverySource = {
   url: string;
@@ -292,6 +293,8 @@ export class ContentService {
     const job = await this.repo.createJob(options?.jobType ?? "article-processing");
 
     try {
+      await this.reclaimStaleProcessingArticles();
+
       const limit = options?.limit ?? 3;
       const includeFailed = options?.includeFailed ?? true;
       const candidates = (await this.repo.listArticles())
@@ -339,6 +342,33 @@ export class ContentService {
     } catch (error) {
       await this.repo.completeJob(job.id, "failed", {}, error instanceof Error ? error.message : "Unknown error");
       throw error;
+    }
+  }
+
+  private async reclaimStaleProcessingArticles(): Promise<void> {
+    const cutoff = Date.now() - STALE_PROCESSING_ARTICLE_WINDOW_MS;
+    const reviewStates = await this.repo.listReviewStates();
+    const staleArticleIds = unique(
+      reviewStates
+        .filter((record) => {
+          if (record.entityType !== "article" || record.state !== "processing") {
+            return false;
+          }
+
+          const updatedAt = Date.parse(record.updatedAt);
+          return Number.isFinite(updatedAt) && updatedAt <= cutoff;
+        })
+        .map((record) => record.entityId)
+    );
+
+    for (const articleId of staleArticleIds) {
+      await this.setEntityState(
+        "article",
+        articleId,
+        "ingested",
+        "system@queue",
+        "Recovered stale processing state"
+      );
     }
   }
 
