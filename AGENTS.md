@@ -113,6 +113,35 @@
 - 集成测试：状态流转、发布、后台接口
 - E2E：前台和后台核心页面
 
+## Commit 规范
+
+从现在开始，commit message 使用统一前缀：
+
+- `feat:` 新功能或新增能力
+- `fix:` 缺陷修复或行为纠正
+- `refactor:` 不改变外部行为的重构
+- `docs:` 文档更新
+- `test:` 测试补充或调整
+- `chore:` 杂项维护
+
+提交信息要求：
+
+- 使用英文前缀 + 简短英文描述
+- 一次 commit 只表达一个主要意图
+- 优先写结果，不写过程
+
+推荐示例：
+
+- `feat: add recoverable cron-based article queue`
+- `fix: reject duplicate insight titles from article analysis`
+- `docs: document project workflow and agent rules`
+
+不要做：
+
+- 混合多个不相关改动到同一次提交
+- 使用模糊信息，例如 `update`、`fix stuff`、`misc`
+- 对已经 push 的共享历史随意改写
+
 ## 禁止事项
 
 - 不要把真实 API key、`.dev.vars`、`.env` 提交到 Git
