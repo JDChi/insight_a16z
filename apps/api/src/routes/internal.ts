@@ -8,21 +8,45 @@ import { createContentService } from "../lib/service";
 export const internalRoutes = new Hono<{ Bindings: Env }>();
 
 internalRoutes.post("/bootstrap", requireBootstrapAccess(), async (c) => {
-  const service = createContentService(c.env);
   const body = await c.req.json().catch(() => ({}));
-  const ingestion = await service.runWeeklyIngestion({
-    limit: typeof body.ingestionLimit === "number" ? body.ingestionLimit : undefined,
-    rebuildTopics: false,
-    rebuildDigest: false,
-    resetBeforeImport: false
-  });
-  const queue = await runRecoverableQueueCycle(c.env, {
-    batchSize: typeof body.processLimit === "number" ? body.processLimit : undefined,
-    rebuildTopics: body.rebuildTopics !== false,
-    rebuildDigest: body.rebuildDigest !== false,
-    jobType: "article-processing-bootstrap"
-  });
-  return c.json({ ingestion, queue });
+  const task = (async () => {
+    const service = createContentService(c.env);
+    const ingestion = await service.runWeeklyIngestion({
+      limit: typeof body.ingestionLimit === "number" ? body.ingestionLimit : undefined,
+      rebuildTopics: false,
+      rebuildDigest: false,
+      resetBeforeImport: false
+    });
+    const queue = await runRecoverableQueueCycle(c.env, {
+      batchSize: typeof body.processLimit === "number" ? body.processLimit : undefined,
+      rebuildTopics: body.rebuildTopics !== false,
+      rebuildDigest: body.rebuildDigest !== false,
+      jobType: "article-processing-bootstrap"
+    });
+    return { ingestion, queue };
+  })();
+
+  let executionCtx: ExecutionContext | null = null;
+  try {
+    executionCtx = c.executionCtx;
+  } catch {
+    executionCtx = null;
+  }
+
+  if (executionCtx) {
+    executionCtx.waitUntil(task);
+    return c.json(
+      {
+        accepted: true,
+        mode: "async",
+        ingestionLimit: typeof body.ingestionLimit === "number" ? body.ingestionLimit : 300,
+        processLimit: typeof body.processLimit === "number" ? body.processLimit : 3
+      },
+      202
+    );
+  }
+
+  return c.json(await task, 200);
 });
 
 internalRoutes.use("*", requireAdmin());

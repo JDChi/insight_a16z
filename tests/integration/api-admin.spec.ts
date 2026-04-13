@@ -96,17 +96,28 @@ describe("admin API", () => {
       "cf-access-authenticated-user-email": "admin@local.test"
     };
 
-    const response = await app.request("/internal/bootstrap", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ ingestionLimit: 50, processLimit: 2 })
-    }, adminEnv);
+    const waitUntil = vi.fn();
+    const response = await app.fetch(
+      new Request("https://example.com/internal/bootstrap", {
+        method: "POST",
+        headers: {
+          ...headers,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ ingestionLimit: 50, processLimit: 2 })
+      }),
+      adminEnv,
+      { waitUntil } as unknown as ExecutionContext
+    );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
     expect(await response.json()).toMatchObject({
-      ingestion: { ingested: 12 },
-      queue: { started: true, result: { processed: 3, published: 2 } }
+      accepted: true,
+      mode: "async",
+      ingestionLimit: 50,
+      processLimit: 2
     });
+    expect(waitUntil).toHaveBeenCalledTimes(1);
     expect(ingestionSpy).toHaveBeenCalledWith({
       limit: 50,
       rebuildTopics: false,
