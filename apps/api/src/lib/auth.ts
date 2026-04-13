@@ -56,3 +56,25 @@ export function requireAdmin(): MiddlewareHandler<{ Bindings: Env }> {
     await next();
   };
 }
+
+export function requireBootstrapAccess(): MiddlewareHandler<{ Bindings: Env }> {
+  return async (c, next) => {
+    const token = c.req.header("x-admin-token");
+    if (token && c.env.ADMIN_TRIGGER_TOKEN && token === c.env.ADMIN_TRIGGER_TOKEN) {
+      await next();
+      return;
+    }
+
+    const identity = getAdminIdentity(c);
+    if (!identity) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const allowedEmails = parseAllowlist(c.env.ADMIN_EMAILS);
+    if (allowedEmails.length > 0 && !allowedEmails.includes(identity.email)) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    await next();
+  };
+}

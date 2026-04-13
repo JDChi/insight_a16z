@@ -8,6 +8,8 @@ AI_COMPAT_MODE = "anthropic"
 AI_BASE_URL = "https://api.minimaxi.com/anthropic/v1"
 AI_MODEL = "MiniMax-M2.7-highspeed"
 SEED_FIXTURES = "false"
+# Configure as a Worker secret in production, not in git.
+# ADMIN_TRIGGER_TOKEN = ""
 
 [[d1_databases]]
 binding = "DB"

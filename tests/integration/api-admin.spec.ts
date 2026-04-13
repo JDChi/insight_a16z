@@ -123,4 +123,54 @@ describe("admin API", () => {
     ingestionSpy.mockRestore();
     queueSpy.mockRestore();
   });
+
+  it("allows bootstrap with x-admin-token but keeps other admin routes protected", async () => {
+    const ingestionSpy = vi
+      .spyOn(ContentService.prototype, "runWeeklyIngestion")
+      .mockResolvedValue({ jobId: "ingestion-job", ingested: 1, analyzed: 0, published: 0 });
+    const queueSpy = vi.spyOn(articleQueue, "runRecoverableQueueCycle").mockResolvedValue({
+      started: true,
+      running: false,
+      result: {
+        jobId: "queue-job",
+        processed: 1,
+        published: 1,
+        failed: 0,
+        deferred: 0
+      }
+    });
+
+    const app = createApp();
+    const bootstrapResponse = await app.request(
+      "/internal/bootstrap",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-admin-token": "secret-token"
+        },
+        body: JSON.stringify({ ingestionLimit: 5, processLimit: 1 })
+      },
+      {
+        ...adminEnv,
+        ADMIN_TRIGGER_TOKEN: "secret-token"
+      }
+    );
+
+    expect(bootstrapResponse.status).toBe(200);
+
+    const articlesResponse = await app.request(
+      "/internal/articles",
+      {},
+      {
+        ...adminEnv,
+        ADMIN_TRIGGER_TOKEN: "secret-token"
+      }
+    );
+
+    expect(articlesResponse.status).toBe(401);
+
+    ingestionSpy.mockRestore();
+    queueSpy.mockRestore();
+  });
 });
