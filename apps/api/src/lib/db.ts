@@ -680,47 +680,71 @@ class D1Repository implements ContentRepository {
   }
 
   async upsertArticleBase(article: ParsedArticle, keys: { rawR2Key: string; cleanedR2Key: string }): Promise<StoredArticle> {
-    const existing = await this.db.prepare("SELECT id FROM articles WHERE source_url = ?").bind(article.sourceUrl).first<{ id: string }>();
-    const id = existing?.id ?? crypto.randomUUID();
-    const slug = article.sourceTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-    await this.db
+    const existing = await this.db
       .prepare(
-        `INSERT OR REPLACE INTO articles (
-          id, source_url, canonical_url, slug, content_type, source_title, zh_title, published_at, summary,
-          key_points_json, key_judgements_json, candidate_topics_json, raw_r2_key, cleaned_r2_key, review_state,
-          published_on, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, COALESCE((SELECT zh_title FROM articles WHERE id = ?), ?), ?, 
-          COALESCE((SELECT summary FROM articles WHERE id = ?), ''), 
-          COALESCE((SELECT key_points_json FROM articles WHERE id = ?), '[]'),
-          COALESCE((SELECT key_judgements_json FROM articles WHERE id = ?), '[]'),
-          COALESCE((SELECT candidate_topics_json FROM articles WHERE id = ?), '[]'),
-          ?, ?, COALESCE((SELECT review_state FROM articles WHERE id = ?), 'ingested'),
-          COALESCE((SELECT published_on FROM articles WHERE id = ?), NULL),
-          COALESCE((SELECT created_at FROM articles WHERE id = ?), ?), ?)`
+        `SELECT id, slug, zh_title, summary, key_points_json, key_judgements_json, candidate_topics_json,
+                review_state, published_on, created_at
+         FROM articles WHERE source_url = ?`
       )
-      .bind(
-        id,
-        article.sourceUrl,
-        article.canonicalUrl,
-        slug,
-        article.contentType,
-        article.sourceTitle,
-        id,
-        article.sourceTitle,
-        article.publishedAt,
-        id,
-        id,
-        id,
-        id,
-        keys.rawR2Key,
-        keys.cleanedR2Key,
-        id,
-        id,
-        id,
-        nowIso(),
-        nowIso()
-      )
-      .run();
+      .bind(article.sourceUrl)
+      .first<Record<string, string>>();
+
+    const id = existing?.id ?? crypto.randomUUID();
+    const slug = existing?.slug ?? article.sourceTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const timestamp = nowIso();
+
+    if (existing) {
+      await this.db
+        .prepare(
+          `UPDATE articles
+           SET canonical_url = ?, slug = ?, content_type = ?, source_title = ?, published_at = ?,
+               raw_r2_key = ?, cleaned_r2_key = ?, updated_at = ?
+           WHERE id = ?`
+        )
+        .bind(
+          article.canonicalUrl,
+          slug,
+          article.contentType,
+          article.sourceTitle,
+          article.publishedAt,
+          keys.rawR2Key,
+          keys.cleanedR2Key,
+          timestamp,
+          id
+        )
+        .run();
+    } else {
+      await this.db
+        .prepare(
+          `INSERT INTO articles (
+            id, source_url, canonical_url, slug, content_type, source_title, zh_title, published_at, summary,
+            key_points_json, key_judgements_json, candidate_topics_json, raw_r2_key, cleaned_r2_key, review_state,
+            published_on, created_at, updated_at, outlook_json
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          id,
+          article.sourceUrl,
+          article.canonicalUrl,
+          slug,
+          article.contentType,
+          article.sourceTitle,
+          article.sourceTitle,
+          article.publishedAt,
+          "",
+          "[]",
+          "[]",
+          "[]",
+          keys.rawR2Key,
+          keys.cleanedR2Key,
+          "ingested",
+          null,
+          timestamp,
+          timestamp,
+          "{}"
+        )
+        .run();
+    }
 
     const stored = await this.getArticleById(id);
     if (!stored) throw new Error("Failed to store article");

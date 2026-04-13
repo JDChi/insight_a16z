@@ -327,4 +327,37 @@ describe("content workflow", () => {
     expect(refreshedIngestionJob?.status).toBe("failed");
     expect(refreshedIngestionJob?.errorMessage).toBe("Timed out while running");
   });
+
+  it("keeps a published article published when the same source is re-ingested", async () => {
+    const repo = new MemoryRepository();
+    await repo.seedFixtures();
+
+    const [target] = await repo.listArticles();
+    await repo.setReviewState({
+      entityType: "article",
+      entityId: target.id,
+      state: "published",
+      reviewer: "admin@local.test"
+    });
+
+    await repo.upsertArticleBase(
+      {
+        sourceUrl: target.sourceUrl,
+        canonicalUrl: target.sourceUrl,
+        sourceTitle: `${target.sourceTitle} updated`,
+        publishedAt: target.publishedAt,
+        contentType: target.contentType,
+        authors: [],
+        plainText: "updated body",
+        sections: []
+      },
+      {
+        rawR2Key: "raw/test",
+        cleanedR2Key: "clean/test"
+      }
+    );
+
+    const updated = await repo.getArticleById(target.id);
+    expect(updated?.reviewState).toBe("published");
+  });
 });
