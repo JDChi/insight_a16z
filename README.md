@@ -2,10 +2,18 @@
 
 一个部署到 Cloudflare 的 `a16z AI 中文洞察站`。
 
+核心运行方式：
+
+- 只收集 `a16z` 官网的 `Articles` 与 `Investment News`
+- 先抓取落库，再按状态逐步分析
+- 中文标题是本站洞察标题，不是原文直译
+- 前端只展示 `published` 内容
+- 队列采用 `cron` 驱动的可恢复批处理模式
+
 ## 技术栈
 
 - `apps/web`: `Astro` 内容站与最小后台
-- `apps/api`: `Hono + Cloudflare Workers` API、采集、分析、发布流
+- `apps/api`: `Hono + Cloudflare Workers` API、采集、分析、队列处理
 - `packages/core`: 共享 schema、类型和 fixture
 - `migrations`: `D1` 初始化 SQL
 
@@ -15,8 +23,24 @@
 - 生成中文标题、摘要、要点、关键判断
 - 聚合专题，输出共识、分歧和趋势推演
 - 生成每周周报
-- 最小后台支持查看、审核、发布和任务状态
+- 最小后台支持查看任务状态、文章队列和手动触发批处理
 - 单元、集成、E2E 测试
+
+## 状态流转
+
+文章状态以数据库为准：
+
+- `ingested`: 已抓取入库，待分析
+- `processing`: 正在分析
+- `published`: 已发布到前台
+- `failed`: 技术性失败，待排查
+
+当前规则：
+
+- 不走人工审核前置
+- 分析成功后直接发布
+- 输出不合理时回退到 `ingested`
+- 已发布内容由前端直接从库中读取
 
 ## 本地开发
 
@@ -26,7 +50,7 @@ pnpm --filter @insight-a16z/api dev
 pnpm --filter @insight-a16z/web dev
 ```
 
-默认前端用 fixture 数据渲染。切到真实 API 时，设置：
+默认前端可用 fixture 数据渲染。切到真实 API 时，设置：
 
 ```bash
 PUBLIC_DATA_MODE=api
@@ -44,6 +68,21 @@ AI_MODEL=replace-with-your-model
 
 `apps/api/src/local-dev.ts` 会自动读取这个文件；`wrangler dev` 也会使用同名本地变量文件。代码优先读取通用的 `AI_*` 变量，并兼容旧的 `OPENAI_*` 配置。
 
+## 队列与抓取
+
+正常运行遵循：
+
+- 增量抓取，不清库重来
+- 先抓取落库，再处理待分析文章
+- `cron` 每次只处理一小批 `ingested`
+- Worker 重启后，下次 `cron` 会继续从数据库状态接着跑
+
+手动接口与 `cron` 的分工：
+
+- `POST /internal/ingestion/run`: 抓取最近一年的目标文章并入库
+- `POST /internal/analysis/articles/process`: 手动跑一批待分析文章
+- `GET /internal/analysis/articles/status`: 查看当前可恢复队列状态
+
 ## 测试
 
 ```bash
@@ -56,8 +95,13 @@ pnpm test:e2e
 
 ## Cloudflare 配置
 
-- `apps/api/wrangler.toml`：Worker、`D1`、`R2`、每周 cron
+- `apps/api/wrangler.toml`：Worker、`D1`、`R2`、cron
 - `apps/web/wrangler.toml`：Pages 输出目录与 `SESSION` KV 绑定占位
+
+建议的 `cron` 组合：
+
+- 高频队列消费：例如每 `10` 分钟一次
+- 周期性文章发现：例如每周一次
 
 部署前需要替换：
 
