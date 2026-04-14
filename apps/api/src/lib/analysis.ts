@@ -575,6 +575,33 @@ function inferTopicsFromText(text: string): string[] {
   return unique(topics.length > 0 ? topics : ["general-ai"]);
 }
 
+export function buildArticlePromptConfig(article: ArticleGenerationInput): PromptConfig {
+  const modelPlainText = prepareArticlePlainTextForModel(article.plainText);
+  const sharedPrompt = [
+    "你是一个严谨的中文科技内容分析助手。",
+    "请将 a16z 的原文文章分析为结构化中文结果，保持信息密度高，避免营销语气。",
+    "请为这篇文章生成一个中文洞察标题，标题必须体现这篇文章最独特的判断或变化，不要只写赛道层面的共识。",
+    "标题必须是中文，且要优先抓住价格变化、采用阶段、竞争结构、采购逻辑、产品机制等具体切口。",
+    "避免使用过于泛化的标题，例如“某赛道正在出现新的产品与市场信号”“消费级 AI 的胜负手”“Agent 正在从……”。",
+    "除摘要、要点和判断外，还需要给出一条未来推演：说明最可能发生的变化、你选择的时间跨度、为什么是现在、应该观察哪些信号，以及对应置信度。",
+    "候选专题 slug 使用英文 kebab-case，例如 agent-workflows、consumer-ai。",
+    `标题: ${article.sourceTitle}`,
+    `类型: ${article.contentType}`,
+    `发布日期: ${article.publishedAt}`,
+    "正文:",
+    modelPlainText
+  ].join("\n");
+
+  return {
+    objectPrompt: sharedPrompt,
+    jsonPrompt: [
+      sharedPrompt,
+      "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释、标题或代码块。",
+      '输出格式必须是 {"zhTitle":"...","summary":"...","keyPoints":["..."],"keyJudgements":["..."],"outlook":{"statement":"...","timeHorizon":"未来 3-12 个月","whyNow":"...","signalsToWatch":["..."],"confidence":"high|medium|low"},"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
+    ].join("\n")
+  };
+}
+
 export class HeuristicAnalysisClient implements AnalysisClient {
   async analyzeArticle(article: {
     sourceTitle: string;
@@ -742,31 +769,13 @@ export class VercelAiAnalysisClient implements AnalysisClient {
   }
 
   async analyzeArticle(article: ArticleGenerationInput): Promise<ArticleAnalysis> {
-    const modelPlainText = prepareArticlePlainTextForModel(article.plainText);
-    const sharedPrompt = [
-      "你是一个严谨的中文科技内容分析助手。",
-      "请将 a16z 的原文文章分析为结构化中文结果，保持信息密度高，避免营销语气。",
-      "除摘要、要点和判断外，还需要给出一条未来推演：说明最可能发生的变化、你选择的时间跨度、为什么是现在、应该观察哪些信号，以及对应置信度。",
-      "候选专题 slug 使用英文 kebab-case，例如 agent-workflows、consumer-ai。",
-      `标题: ${article.sourceTitle}`,
-      `类型: ${article.contentType}`,
-      `发布日期: ${article.publishedAt}`,
-      "正文:",
-      modelPlainText
-    ].join("\n");
+    const promptConfig = buildArticlePromptConfig(article);
 
     let parsed: ArticleAnalysis;
     try {
       parsed = await this.generateStructured(
         articleAnalysisSchema,
-        {
-          objectPrompt: sharedPrompt,
-          jsonPrompt: [
-            sharedPrompt,
-            "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释、标题或代码块。",
-            '输出格式必须是 {"summary":"...","keyPoints":["..."],"keyJudgements":["..."],"outlook":{"statement":"...","timeHorizon":"未来 3-12 个月","whyNow":"...","signalsToWatch":["..."],"confidence":"high|medium|low"},"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
-          ].join("\n")
-        },
+        promptConfig,
         (text) => {
           try {
             return parseArticleAnalysisTextStrict(text, article);

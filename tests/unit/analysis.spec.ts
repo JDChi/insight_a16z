@@ -1,4 +1,5 @@
 import {
+  buildArticlePromptConfig,
   HeuristicAnalysisClient,
   ensureUniqueInsightTitle,
   prepareArticlePlainTextForModel,
@@ -137,5 +138,19 @@ describe("heuristic analysis client", () => {
     expect(first).toBe("Agent 正在从演示能力转向真正可执行的工作流");
     expect(second).not.toBe(first);
     expect(second).toContain("Gen AI");
+  });
+
+  it("asks the model to generate article-specific Chinese insight titles instead of generic track labels", () => {
+    const prompt = buildArticlePromptConfig({
+      sourceTitle: "The Smartest Consumer Apps Now Cost $200 a Month",
+      contentType: "Article",
+      publishedAt: "2026-04-10",
+      plainText: "Consumer AI apps are raising prices and competing on willingness to pay."
+    });
+
+    expect(prompt.objectPrompt).toContain("标题必须体现这篇文章最独特的判断或变化");
+    expect(prompt.objectPrompt).toContain("避免使用过于泛化的标题");
+    expect(prompt.objectPrompt).toContain("价格变化、采用阶段、竞争结构、采购逻辑、产品机制");
+    expect(prompt.jsonPrompt).toContain('"zhTitle":"..."');
   });
 });
