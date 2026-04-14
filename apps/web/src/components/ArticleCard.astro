@@ -47,9 +47,16 @@ const { article } = Astro.props;
   }
 
   .tags span {
-    padding: 4px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.25rem;
+    padding: 0.45rem 1rem;
+    line-height: 1.1;
     border-radius: 999px;
     background: var(--accent-soft);
     color: var(--accent);
+    text-align: center;
+    white-space: nowrap;
   }
 </style>
