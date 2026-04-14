@@ -32,7 +32,7 @@ import { endOfWeek, nowIso, startOfWeek, stringifyJson, unique } from "./utils";
 
 const DEFAULT_INGESTION_CONCURRENCY = 4;
 const STALE_PROCESSING_ARTICLE_WINDOW_MS = 30 * 60 * 1000;
-const ARTICLE_ANALYSIS_PROMPT_VERSION = "article-analysis-v1";
+const ARTICLE_ANALYSIS_PROMPT_VERSION = "article-analysis-v2";
 
 type IngestionDiscoverySource = {
   url: string;

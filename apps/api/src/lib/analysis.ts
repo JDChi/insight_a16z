@@ -1,6 +1,7 @@
 import { generateText, Output } from "ai";
 import {
   articleAnalysisSchema,
+  articleOutlookSchema,
   type ArticleOutlook,
   digestAnalysisSchema,
   topicAnalysisSchema,
@@ -32,6 +33,40 @@ interface ArticleGenerationInput {
   publishedAt: string;
   plainText: string;
 }
+
+export interface ArticleFactExtractionResult {
+  summary: string;
+  keyPoints: string[];
+  candidateTopics: string[];
+  evidenceLinks: ArticleAnalysis["evidenceLinks"];
+}
+
+export interface ArticleJudgementResult {
+  keyJudgements: string[];
+  coreShift: string;
+}
+
+export interface ArticleTitleGenerationResult {
+  zhTitle: string;
+}
+
+type ArticleAnalysisPipelineStages = {
+  extractFacts: (article: ArticleGenerationInput) => Promise<ArticleFactExtractionResult>;
+  deriveJudgements: (
+    article: ArticleGenerationInput,
+    facts: ArticleFactExtractionResult
+  ) => Promise<ArticleJudgementResult>;
+  generateTitle: (
+    article: ArticleGenerationInput,
+    facts: ArticleFactExtractionResult,
+    judgements: ArticleJudgementResult
+  ) => Promise<string>;
+  generateOutlook: (
+    article: ArticleGenerationInput,
+    facts: ArticleFactExtractionResult,
+    judgements: ArticleJudgementResult
+  ) => Promise<ArticleOutlook>;
+};
 
 export class AnalysisOutputRejectedError extends Error {
   constructor(message: string) {
@@ -453,6 +488,57 @@ function normalizeEvidenceLinks(
   }));
 }
 
+function parseFactExtractionOutput(raw: unknown): ArticleFactExtractionResult {
+  const record = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const summary = typeof record.summary === "string" ? record.summary.trim() : "";
+  const keyPoints = normalizeStringArray(record.keyPoints, 3, 5, []);
+  const candidateTopics = normalizeStringArray(record.candidateTopics, 1, 4, []);
+  const evidenceLinks = normalizeEvidenceLinks(record.evidenceLinks, keyPoints, keyPoints);
+
+  if (!summary || keyPoints.length < 3 || candidateTopics.length < 1 || evidenceLinks.length < 2) {
+    throw new Error("Invalid fact extraction output");
+  }
+
+  return {
+    summary,
+    keyPoints,
+    candidateTopics,
+    evidenceLinks
+  };
+}
+
+function parseJudgementOutput(raw: unknown): ArticleJudgementResult {
+  const record = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const keyJudgements = normalizeStringArray(record.keyJudgements, 2, 5, []);
+  const coreShift = typeof record.coreShift === "string" ? record.coreShift.trim() : "";
+
+  if (keyJudgements.length < 2 || !coreShift) {
+    throw new Error("Invalid judgement output");
+  }
+
+  return {
+    keyJudgements,
+    coreShift
+  };
+}
+
+function parseTitleOutput(raw: unknown): ArticleTitleGenerationResult {
+  const record = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const zhTitle = typeof record.zhTitle === "string" ? record.zhTitle.trim() : "";
+
+  if (!zhTitle) {
+    throw new Error("Invalid title output");
+  }
+
+  return {
+    zhTitle
+  };
+}
+
+function parseJsonStageOutput<T>(text: string, parse: (raw: unknown) => T): T {
+  return parse(JSON.parse(extractJsonObject(text)));
+}
+
 function normalizeArticleAnalysisOutput(raw: unknown, article: ArticleGenerationInput): ArticleAnalysis {
   const candidateTopics = inferTopicsFromText(`${article.sourceTitle}\n${article.plainText}`);
   const fallback = buildChineseFallbackAnalysis({
@@ -576,14 +662,15 @@ function inferTopicsFromText(text: string): string[] {
 }
 
 export function buildArticlePromptConfig(article: ArticleGenerationInput): PromptConfig {
+  return buildArticleFactPromptConfig(article);
+}
+
+export function buildArticleFactPromptConfig(article: ArticleGenerationInput): PromptConfig {
   const modelPlainText = prepareArticlePlainTextForModel(article.plainText);
   const sharedPrompt = [
     "你是一个严谨的中文科技内容分析助手。",
-    "请将 a16z 的原文文章分析为结构化中文结果，保持信息密度高，避免营销语气。",
-    "请为这篇文章生成一个中文洞察标题，标题必须体现这篇文章最独特的判断或变化，不要只写赛道层面的共识。",
-    "标题必须是中文，且要优先抓住价格变化、采用阶段、竞争结构、采购逻辑、产品机制等具体切口。",
-    "避免使用过于泛化的标题，例如“某赛道正在出现新的产品与市场信号”“消费级 AI 的胜负手”“Agent 正在从……”。",
-    "除摘要、要点和判断外，还需要给出一条未来推演：说明最可能发生的变化、你选择的时间跨度、为什么是现在、应该观察哪些信号，以及对应置信度。",
+    "请先只做事实抽取，不要生成标题、趋势推演或泛泛评论。",
+    "输出高信息密度的摘要、要点、候选专题和证据链，保持克制，不要营销化。",
     "候选专题 slug 使用英文 kebab-case，例如 agent-workflows、consumer-ai。",
     `标题: ${article.sourceTitle}`,
     `类型: ${article.contentType}`,
@@ -597,9 +684,159 @@ export function buildArticlePromptConfig(article: ArticleGenerationInput): Promp
     jsonPrompt: [
       sharedPrompt,
       "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释、标题或代码块。",
-      '输出格式必须是 {"zhTitle":"...","summary":"...","keyPoints":["..."],"keyJudgements":["..."],"outlook":{"statement":"...","timeHorizon":"未来 3-12 个月","whyNow":"...","signalsToWatch":["..."],"confidence":"high|medium|low"},"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
+      '输出格式必须是 {"summary":"...","keyPoints":["..."],"candidateTopics":["..."],"evidenceLinks":[{"claim":"...","evidenceText":"...","sourceLocator":"..."}]}'
     ].join("\n")
   };
+}
+
+export function buildArticleJudgementPromptConfig(
+  article: ArticleGenerationInput,
+  facts: ArticleFactExtractionResult
+): PromptConfig {
+  const context = [
+    `原文标题: ${article.sourceTitle}`,
+    `摘要: ${facts.summary}`,
+    `要点: ${facts.keyPoints.join(" | ")}`,
+    `证据: ${facts.evidenceLinks.map((item) => `${item.claim} => ${item.evidenceText}`).join(" | ")}`,
+    `候选专题: ${facts.candidateTopics.join(", ")}`
+  ].join("\n");
+
+  const sharedPrompt = [
+    "你是一个严谨的中文科技研究编辑。",
+    "请只基于给定事实，归纳这篇文章的关键判断。",
+    "同时给出一条 coreShift，表示这篇文章最核心的变化、转向或结构性判断。",
+    "不要生成标题，不要做未来推演。",
+    context
+  ].join("\n");
+
+  return {
+    objectPrompt: sharedPrompt,
+    jsonPrompt: [
+      sharedPrompt,
+      "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释或代码块。",
+      '输出格式必须是 {"keyJudgements":["..."],"coreShift":"..."}'
+    ].join("\n")
+  };
+}
+
+export function buildArticleTitlePromptConfig(
+  article: ArticleGenerationInput,
+  facts: ArticleFactExtractionResult,
+  judgements: ArticleJudgementResult
+): PromptConfig {
+  const sharedPrompt = [
+    "你是一个严谨的中文科技内容编辑。",
+    "请只为这篇文章生成一个中文洞察标题。",
+    "标题必须体现这篇文章最独特的判断或变化，不要只写赛道层面的共识。",
+    "标题必须是中文，优先抓住价格变化、采用阶段、竞争结构、采购逻辑、产品机制等具体切口。",
+    "避免使用过于泛化的标题，例如“某赛道正在出现新的产品与市场信号”“消费级 AI 的胜负手”“Agent 正在从……”。",
+    `原文标题: ${article.sourceTitle}`,
+    `摘要: ${facts.summary}`,
+    `关键判断: ${judgements.keyJudgements.join(" | ")}`,
+    `核心变化: ${judgements.coreShift}`
+  ].join("\n");
+
+  return {
+    objectPrompt: sharedPrompt,
+    jsonPrompt: [
+      sharedPrompt,
+      "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释或代码块。",
+      '输出格式必须是 {"zhTitle":"..."}'
+    ].join("\n")
+  };
+}
+
+export function buildArticleOutlookPromptConfig(
+  article: ArticleGenerationInput,
+  facts: ArticleFactExtractionResult,
+  judgements: ArticleJudgementResult
+): PromptConfig {
+  const sharedPrompt = [
+    "你是一个严谨的中文科技研究编辑。",
+    "请只基于给定事实和判断，生成一条未来推演。",
+    "推演必须包含最可能发生的变化、你选择的时间跨度、为什么是现在、应该观察哪些信号，以及置信度。",
+    "不要复述摘要，不要生成标题。",
+    `原文标题: ${article.sourceTitle}`,
+    `摘要: ${facts.summary}`,
+    `关键判断: ${judgements.keyJudgements.join(" | ")}`,
+    `核心变化: ${judgements.coreShift}`,
+    `证据: ${facts.evidenceLinks.map((item) => `${item.claim} => ${item.evidenceText}`).join(" | ")}`
+  ].join("\n");
+
+  return {
+    objectPrompt: sharedPrompt,
+    jsonPrompt: [
+      sharedPrompt,
+      "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释或代码块。",
+      '输出格式必须是 {"statement":"...","timeHorizon":"未来 3-12 个月","whyNow":"...","signalsToWatch":["..."],"confidence":"high|medium|low"}'
+    ].join("\n")
+  };
+}
+
+export async function runArticleAnalysisPipeline(
+  article: ArticleGenerationInput,
+  stages: ArticleAnalysisPipelineStages
+): Promise<ArticleAnalysis> {
+  let facts: ArticleFactExtractionResult;
+  try {
+    facts = parseFactExtractionOutput(await stages.extractFacts(article));
+  } catch (error) {
+    throw new AnalysisOutputRejectedError(
+      error instanceof Error ? `Fact extraction failed: ${error.message}` : "Fact extraction failed"
+    );
+  }
+
+  let judgements: ArticleJudgementResult;
+  try {
+    judgements = parseJudgementOutput(await stages.deriveJudgements(article, facts));
+  } catch (error) {
+    throw new AnalysisOutputRejectedError(
+      error instanceof Error ? `Judgement derivation failed: ${error.message}` : "Judgement derivation failed"
+    );
+  }
+
+  let zhTitle: string;
+  try {
+    const title = await stages.generateTitle(article, facts, judgements);
+    zhTitle = shouldUseGeneratedInsightTitle(title, article.sourceTitle)
+      ? title.trim()
+      : deriveInsightTitle({
+          sourceTitle: article.sourceTitle,
+          summary: facts.summary,
+          keyJudgements: judgements.keyJudgements,
+          candidateTopics: facts.candidateTopics
+        });
+  } catch {
+    zhTitle = deriveInsightTitle({
+      sourceTitle: article.sourceTitle,
+      summary: facts.summary,
+      keyJudgements: judgements.keyJudgements,
+      candidateTopics: facts.candidateTopics
+    });
+  }
+
+  let outlook: ArticleOutlook;
+  try {
+    outlook = articleOutlookSchema.parse(await stages.generateOutlook(article, facts, judgements));
+  } catch {
+    outlook = buildArticleOutlook({
+      sourceTitle: article.sourceTitle,
+      summary: facts.summary,
+      keyJudgements: judgements.keyJudgements,
+      candidateTopics: facts.candidateTopics,
+      plainText: article.plainText
+    });
+  }
+
+  return articleAnalysisSchema.parse({
+    zhTitle,
+    summary: facts.summary,
+    keyPoints: facts.keyPoints,
+    keyJudgements: judgements.keyJudgements,
+    outlook,
+    candidateTopics: facts.candidateTopics,
+    evidenceLinks: facts.evidenceLinks
+  });
 }
 
 export class HeuristicAnalysisClient implements AnalysisClient {
@@ -768,29 +1005,54 @@ export class VercelAiAnalysisClient implements AnalysisClient {
     }
   }
 
-  async analyzeArticle(article: ArticleGenerationInput): Promise<ArticleAnalysis> {
-    const promptConfig = buildArticlePromptConfig(article);
+  private async generateJsonStage<T>(
+    prompt: PromptConfig,
+    parse: (raw: unknown) => T,
+    label: string
+  ): Promise<T> {
+    const result = await withTimeout(
+      generateText({
+        model: this.getModel(),
+        prompt: prompt.jsonPrompt
+      }),
+      MODEL_TIMEOUT_MS,
+      label
+    );
 
-    let parsed: ArticleAnalysis;
+    return parseJsonStageOutput(result.text, parse);
+  }
+
+  async analyzeArticle(article: ArticleGenerationInput): Promise<ArticleAnalysis> {
     try {
-      parsed = await this.generateStructured(
-        articleAnalysisSchema,
-        promptConfig,
-        (text) => {
-          try {
-            return parseArticleAnalysisTextStrict(text, article);
-          } catch {
-            throw new AnalysisOutputRejectedError("Invalid article analysis output");
-          }
-        }
-      );
+      return await runArticleAnalysisPipeline(article, {
+        extractFacts: async (input) =>
+          this.generateJsonStage(buildArticleFactPromptConfig(input), parseFactExtractionOutput, "article-fact-extraction"),
+        deriveJudgements: async (input, facts) =>
+          this.generateJsonStage(
+            buildArticleJudgementPromptConfig(input, facts),
+            parseJudgementOutput,
+            "article-judgement-generation"
+          ),
+        generateTitle: async (input, facts, judgements) =>
+          (
+            await this.generateJsonStage(
+              buildArticleTitlePromptConfig(input, facts, judgements),
+              parseTitleOutput,
+              "article-title-generation"
+            )
+          ).zhTitle,
+        generateOutlook: async (input, facts, judgements) =>
+          this.generateJsonStage(
+            buildArticleOutlookPromptConfig(input, facts, judgements),
+            (raw) => articleOutlookSchema.parse(raw),
+            "article-outlook-generation"
+          )
+      });
     } catch (error) {
       throw new AnalysisOutputRejectedError(
         error instanceof Error ? error.message : "Article analysis output was rejected"
       );
     }
-
-    return parsed;
   }
 
   async analyzeTopic(topicSlug: string, articles: StoredArticle[]): Promise<TopicAnalysis> {
