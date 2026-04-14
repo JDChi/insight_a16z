@@ -44,6 +44,10 @@ const MAX_ARTICLE_PROMPT_CHARS = 12000;
 const MODEL_TIMEOUT_MS = 120000;
 const titleStopWords = new Set(["the", "a", "an", "and", "or", "for", "to", "of", "in", "on", "with", "by"]);
 
+function containsChinese(text: string): boolean {
+  return /[\u4e00-\u9fff]/.test(text);
+}
+
 function titleCaseTopic(topic: string): string {
   return topic
     .split("-")
@@ -102,6 +106,25 @@ export function deriveInsightTitle(input: {
   }
 
   return firstJudgement.length > 0 ? firstJudgement : input.sourceTitle;
+}
+
+function shouldUseGeneratedInsightTitle(title: string, sourceTitle: string): boolean {
+  const normalizedTitle = title.trim();
+  const normalizedSource = sourceTitle.trim();
+
+  if (normalizedTitle.length === 0) {
+    return false;
+  }
+
+  if (!containsChinese(normalizedTitle)) {
+    return false;
+  }
+
+  if (normalizedTitle.toLowerCase() === normalizedSource.toLowerCase()) {
+    return false;
+  }
+
+  return true;
 }
 
 function extractSourceAwareTitleHint(sourceTitle: string, sourceUrl: string): string {
@@ -453,15 +476,15 @@ function normalizeArticleAnalysisOutput(raw: unknown, article: ArticleGeneration
     plainText: article.plainText
   });
   const rawOutlook = record.outlook && typeof record.outlook === "object" ? (record.outlook as Record<string, unknown>) : {};
-  const zhTitle =
-    typeof record.zhTitle === "string" && record.zhTitle.trim().length > 0
-      ? record.zhTitle.trim()
-      : deriveInsightTitle({
-          sourceTitle: article.sourceTitle,
-          summary,
-          keyJudgements,
-          candidateTopics: normalizedTopics
-        });
+  const generatedTitle = typeof record.zhTitle === "string" ? record.zhTitle.trim() : "";
+  const zhTitle = shouldUseGeneratedInsightTitle(generatedTitle, article.sourceTitle)
+    ? generatedTitle
+    : deriveInsightTitle({
+        sourceTitle: article.sourceTitle,
+        summary,
+        keyJudgements,
+        candidateTopics: normalizedTopics
+      });
 
   return articleAnalysisSchema.parse({
     zhTitle,
@@ -758,15 +781,7 @@ export class VercelAiAnalysisClient implements AnalysisClient {
       );
     }
 
-    return {
-      ...parsed,
-      zhTitle: deriveInsightTitle({
-        sourceTitle: article.sourceTitle,
-        summary: parsed.summary,
-        keyJudgements: parsed.keyJudgements,
-        candidateTopics: parsed.candidateTopics
-      })
-    };
+    return parsed;
   }
 
   async analyzeTopic(topicSlug: string, articles: StoredArticle[]): Promise<TopicAnalysis> {
