@@ -7,7 +7,12 @@ import type {
   TopicSummary
 } from "@insight-a16z/core";
 
-import { AnalysisOutputRejectedError, createAnalysisClient, slugFromTopicName } from "./analysis";
+import {
+  AnalysisOutputRejectedError,
+  createAnalysisClient,
+  ensureUniqueInsightTitle,
+  slugFromTopicName
+} from "./analysis";
 import { findStaleQueueJobs } from "./article-queue";
 import { clearMemoryObjectStore, createObjectStore, createRepository } from "./db";
 import type { Env } from "./env";
@@ -268,13 +273,20 @@ export class ContentService {
           .map((item) => item.zhTitle.trim())
           .filter(Boolean)
       );
-      const normalizedTitle = analysis.zhTitle.trim();
+      const normalizedTitle = ensureUniqueInsightTitle(analysis.zhTitle, {
+        sourceTitle: article.sourceTitle,
+        sourceUrl: article.sourceUrl,
+        existingTitles: Array.from(existingTitles)
+      }).trim();
 
       if (existingTitles.has(normalizedTitle)) {
         throw new AnalysisOutputRejectedError(`Duplicate insight title: ${normalizedTitle}`);
       }
 
-      await this.repo.updateArticleAnalysis(articleId, analysis);
+      await this.repo.updateArticleAnalysis(articleId, {
+        ...analysis,
+        zhTitle: normalizedTitle
+      });
       await this.publish("article", articleId, "system@analysis");
       await this.repo.completeAnalysisRun(analysisRun.id, "succeeded");
     } catch (error) {

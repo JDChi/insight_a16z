@@ -235,6 +235,58 @@ describe("content workflow", () => {
     expect(runs.every((run) => run.durationMs !== null)).toBe(true);
   });
 
+  it("disambiguates a duplicate insight title and still publishes the article", async () => {
+    const repo = new MemoryRepository();
+    const objectStore = new MemoryObjectStore();
+    await repo.seedFixtures();
+
+    const articles = await repo.listArticles();
+    const target = articles[0];
+    const existing = articles[1];
+
+    await repo.setReviewState({
+      entityType: "article",
+      entityId: target.id,
+      state: "ingested",
+      reviewer: "admin@local.test"
+    });
+
+    const service = new ContentService(repo, objectStore, {
+      async analyzeArticle() {
+        return {
+          zhTitle: existing.zhTitle,
+          summary: "这是一段有效的中文摘要。",
+          keyPoints: ["要点一", "要点二", "要点三"],
+          keyJudgements: ["判断一", "判断二"],
+          outlook: {
+            statement: "未来 6-12 个月，这一方向会继续扩张。",
+            timeHorizon: "未来 6-12 个月",
+            whyNow: "市场和供给两端都在同步成熟。",
+            signalsToWatch: ["更多正式产品推出"],
+            confidence: "medium"
+          },
+          candidateTopics: ["consumer-ai"],
+          evidenceLinks: [
+            { claim: "判断一", evidenceText: "要点一", sourceLocator: "paragraph:1" },
+            { claim: "判断二", evidenceText: "要点二", sourceLocator: "paragraph:2" }
+          ]
+        };
+      },
+      async analyzeTopic() {
+        throw new Error("not used");
+      },
+      async analyzeDigest() {
+        throw new Error("not used");
+      }
+    });
+
+    const updated = await service.analyzeArticle(target.id);
+
+    expect(updated.reviewState).toBe("published");
+    expect(updated.zhTitle).not.toBe(existing.zhTitle);
+    expect(updated.zhTitle.startsWith(`${existing.zhTitle} ·`)).toBe(true);
+  });
+
   it("reclaims stale processing articles back into the queue", async () => {
     const repo = new MemoryRepository();
     const objectStore = new MemoryObjectStore();
