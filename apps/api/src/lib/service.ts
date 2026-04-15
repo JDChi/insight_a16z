@@ -1,9 +1,7 @@
 import type {
-  AdminOverview,
   ArticleSummary,
   DigestSummary,
   IngestionJob,
-  ReviewRecord,
   TopicSummary
 } from "@insight-a16z/core";
 
@@ -116,14 +114,6 @@ export class ContentService {
   async getJobs(): Promise<IngestionJob[]> {
     await this.reconcileStaleJobs();
     return this.repo.listJobs();
-  }
-
-  async getReviewStates(): Promise<ReviewRecord[]> {
-    return this.repo.listReviewStates();
-  }
-
-  async getAdminOverview(): Promise<AdminOverview> {
-    return this.repo.getAdminOverview();
   }
 
   async runWeeklyIngestion(options?: {
@@ -287,7 +277,7 @@ export class ContentService {
         ...analysis,
         zhTitle: normalizedTitle
       });
-      await this.publish("article", articleId, "system@analysis");
+      await this.setEntityState("article", articleId, "published", "system@analysis");
       await this.repo.completeAnalysisRun(analysisRun.id, "succeeded");
     } catch (error) {
       const rejected = error instanceof AnalysisOutputRejectedError;
@@ -442,7 +432,7 @@ export class ContentService {
       analysis,
       supportingArticles
     });
-    await this.publish("topic", stored.id, "system@analysis");
+    await this.setEntityState("topic", stored.id, "published", "system@analysis");
     const updated = await this.repo.getTopicBySlug(topicSlug);
     if (!updated) {
       throw new Error(`Topic ${topicSlug} not found after analysis`);
@@ -470,7 +460,7 @@ export class ContentService {
         analysis,
         supportingArticles: topicArticles
       });
-      await this.publish("topic", stored.id, "system@analysis");
+      await this.setEntityState("topic", stored.id, "published", "system@analysis");
       const updated = await this.repo.getTopicBySlug(topicSlug);
       if (updated) {
         topics.push(updated);
@@ -500,42 +490,12 @@ export class ContentService {
       weekEnd,
       analysis
     });
-    await this.publish("digest", digest.id, "system@analysis");
+    await this.setEntityState("digest", digest.id, "published", "system@analysis");
     const updated = await this.repo.getDigestBySlug(`${weekStart}`);
     if (!updated) {
       throw new Error(`Digest ${weekStart} not found after analysis`);
     }
     return updated;
-  }
-
-  async approve(entityType: "article" | "topic" | "digest", entityId: string, reviewer: string | null, note?: string) {
-    return this.repo.setReviewState({
-      entityType,
-      entityId,
-      state: "approved",
-      reviewer,
-      note
-    });
-  }
-
-  async reject(entityType: "article" | "topic" | "digest", entityId: string, reviewer: string | null, note?: string) {
-    return this.repo.setReviewState({
-      entityType,
-      entityId,
-      state: "rejected",
-      reviewer,
-      note
-    });
-  }
-
-  async publish(entityType: "article" | "topic" | "digest", entityId: string, reviewer: string | null, note?: string) {
-    return this.repo.setReviewState({
-      entityType,
-      entityId,
-      state: "published",
-      reviewer,
-      note
-    });
   }
 
   async setEntityState(

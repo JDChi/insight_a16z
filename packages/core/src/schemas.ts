@@ -143,15 +143,6 @@ export const ingestionJobSchema = z.object({
   stats: z.record(z.string(), z.number()).default({})
 });
 
-export const adminOverviewSchema = z.object({
-  draftArticles: z.number().int().nonnegative(),
-  reviewingArticles: z.number().int().nonnegative(),
-  publishedArticles: z.number().int().nonnegative(),
-  topicsInReview: z.number().int().nonnegative(),
-  pendingJobs: z.number().int().nonnegative(),
-  failedJobs: z.number().int().nonnegative()
-});
-
 export type EvidenceLink = z.infer<typeof evidenceLinkSchema>;
 export type TrendPrediction = z.infer<typeof trendPredictionSchema>;
 export type ArticleOutlook = z.infer<typeof articleOutlookSchema>;
@@ -166,4 +157,3 @@ export type DigestSummary = z.infer<typeof digestSummarySchema>;
 export type DigestDetail = z.infer<typeof digestDetailSchema>;
 export type ReviewRecord = z.infer<typeof reviewRecordSchema>;
 export type IngestionJob = z.infer<typeof ingestionJobSchema>;
-export type AdminOverview = z.infer<typeof adminOverviewSchema>;

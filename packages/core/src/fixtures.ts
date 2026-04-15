@@ -1,5 +1,4 @@
 import type {
-  AdminOverview,
   ArticleDetail,
   ArticleSummary,
   DigestDetail,
@@ -311,15 +310,6 @@ export const sampleJobs: IngestionJob[] = [
     }
   }
 ];
-
-export const sampleOverview: AdminOverview = {
-  draftArticles: 0,
-  reviewingArticles: 0,
-  publishedArticles: 20,
-  topicsInReview: 0,
-  pendingJobs: 1,
-  failedJobs: 1
-};
 
 export const sampleArticleSummaries: ArticleSummary[] = sampleArticles.map(
   ({

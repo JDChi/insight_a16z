@@ -1,5 +1,4 @@
 import type {
-  AdminOverview,
   ArticleAnalysis,
   ArticleDetail,
   ArticleSummary,
@@ -129,7 +128,6 @@ export interface ContentRepository {
   createJob(jobType: string): Promise<IngestionJob>;
   completeJob(jobId: string, status: "succeeded" | "failed", stats?: Record<string, number>, errorMessage?: string): Promise<void>;
   listJobs(): Promise<IngestionJob[]>;
-  getAdminOverview(): Promise<AdminOverview>;
 }
 
 export interface ObjectStore {

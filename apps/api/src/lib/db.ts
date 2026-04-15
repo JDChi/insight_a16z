@@ -2,9 +2,7 @@ import {
   sampleArticles,
   sampleDigests,
   sampleJobs,
-  sampleOverview,
   sampleTopics,
-  type AdminOverview,
   type ArticleAnalysis,
   type ArticleDetail,
   type ArticleSummary,
@@ -531,19 +529,6 @@ export class MemoryRepository implements ContentRepository {
 
   async listJobs(): Promise<IngestionJob[]> {
     return [...this.jobs.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-  }
-
-  async getAdminOverview(): Promise<AdminOverview> {
-    const articles = [...this.articles.values()];
-    const jobs = [...this.jobs.values()];
-    return {
-      draftArticles: articles.filter((item) => item.reviewState === "ingested" || item.reviewState === "draft").length,
-      reviewingArticles: articles.filter((item) => item.reviewState === "processing" || item.reviewState === "reviewing").length,
-      publishedArticles: articles.filter((item) => item.reviewState === "published").length,
-      topicsInReview: [...this.topics.values()].filter((item) => item.reviewState === "reviewing").length,
-      pendingJobs: jobs.filter((item) => item.status === "running" || item.status === "pending").length,
-      failedJobs: jobs.filter((item) => item.status === "failed").length
-    };
   }
 }
 
@@ -1115,18 +1100,6 @@ class D1Repository implements ContentRepository {
     }));
   }
 
-  async getAdminOverview(): Promise<AdminOverview> {
-    const [articles, topics, jobs] = await Promise.all([this.listArticles(), this.listTopics(), this.listJobs()]);
-    return {
-      draftArticles: articles.filter((item) => item.reviewState === "ingested" || item.reviewState === "draft").length,
-      reviewingArticles: articles.filter((item) => item.reviewState === "processing" || item.reviewState === "reviewing").length,
-      publishedArticles: articles.filter((item) => item.reviewState === "published").length,
-      topicsInReview: topics.filter((item) => item.reviewState === "reviewing").length,
-      pendingJobs: jobs.filter((item) => item.status === "pending" || item.status === "running").length,
-      failedJobs: jobs.filter((item) => item.status === "failed").length
-    };
-  }
-
   private rowToArticle(row: Record<string, string>): StoredArticleRecord {
     return {
       id: row.id,
@@ -1241,8 +1214,6 @@ export function createObjectStore(env: Env): ObjectStore {
 
   return sharedMemoryObjectStore;
 }
-
-export const sampleAdminOverview = sampleOverview;
 
 export function resetMemoryStores(): void {
   sharedMemoryRepository = null;
