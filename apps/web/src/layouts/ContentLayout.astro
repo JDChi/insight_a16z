@@ -3,15 +3,16 @@ interface Props {
   title: string;
   intro?: string;
   meta?: string[];
+  eyebrow?: string;
 }
 
-const { title, intro, meta = [] } = Astro.props;
+const { title, intro, meta = [], eyebrow = "洞察文章" } = Astro.props;
 ---
 
 <section class="container content-shell">
   <div class="content-main panel">
     <div class="content-header">
-      <div class="eyebrow">洞察文章</div>
+      <div class="eyebrow">{eyebrow}</div>
       <h1>{title}</h1>
       {intro && <p>{intro}</p>}
       {meta.length > 0 && (

@@ -5,7 +5,7 @@ const type = params.get("type") ?? "";
 ---
 
 <form class="filter-bar panel" method="get">
-  <input type="search" name="q" value={q} placeholder="搜索文章、专题或判断" />
+  <input type="search" name="q" value={q} placeholder="搜索标题、摘要或原文标题" />
   <select name="type">
     <option value="">全部类型</option>
     <option value="Article" selected={type === "Article"}>文章</option>

@@ -3,6 +3,7 @@ node_modules
 dist
 .wrangler
 .tmp
+.superpowers
 playwright-report
 test-results
 .env

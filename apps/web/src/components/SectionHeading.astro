@@ -29,15 +29,42 @@ const { eyebrow, title, description, href, hrefLabel = "查看全部" } = Astro.
     align-items: end;
     justify-content: space-between;
     gap: 18px;
-    margin-bottom: 18px;
+    margin-bottom: 22px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(82, 48, 21, 0.1);
+  }
+
+  .section-heading h2 {
+    margin-top: 4px;
+  }
+
+  .section-heading p {
+    max-width: 42rem;
+    color: var(--muted-strong);
   }
 
   .heading-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0.45rem 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(182, 77, 19, 0.18);
+    background: rgba(255, 248, 240, 0.92);
     font-family: var(--font-ui);
-    color: var(--accent);
+    color: var(--accent-strong);
+    font-weight: 600;
   }
 
   p {
     margin: 8px 0 0;
+  }
+
+  @media (max-width: 720px) {
+    .section-heading {
+      align-items: start;
+      flex-direction: column;
+    }
   }
 </style>

@@ -2,17 +2,17 @@
 import ArticleCard from "../../components/ArticleCard.astro";
 import EmptyState from "../../components/EmptyState.astro";
 import SiteLayout from "../../layouts/SiteLayout.astro";
-import { getArticleInsights } from "../../lib/content-source";
+import { getInvestmentNews } from "../../lib/content-source";
 
-const articles = await getArticleInsights();
+const articles = await getInvestmentNews();
 ---
 
-<SiteLayout title="文章">
+<SiteLayout title="投资动态">
   <section class="container" style="padding: 36px 0 72px;">
     <div class="stack">
       <div>
-        <h1>文章</h1>
-        <p>浏览来自 a16z Articles 的中文分析内容。</p>
+        <h1>投资动态</h1>
+        <p>浏览来自 a16z Investment News 的投资、押注与市场信号。</p>
       </div>
       {articles.length > 0 ? (
         <div class="grid-two">

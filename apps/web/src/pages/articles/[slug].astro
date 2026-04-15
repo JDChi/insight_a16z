@@ -3,13 +3,10 @@ import ContentLayout from "../../layouts/ContentLayout.astro";
 import SiteLayout from "../../layouts/SiteLayout.astro";
 import EmptyState from "../../components/EmptyState.astro";
 import EvidenceList from "../../components/EvidenceList.astro";
-import TopicCard from "../../components/TopicCard.astro";
 import { toChineseContentType } from "../../lib/display";
-import { getArticleBySlug, getTopics } from "../../lib/content-source";
+import { getArticleBySlug } from "../../lib/content-source";
 
 const article = await getArticleBySlug(Astro.params.slug ?? "");
-const topics = await getTopics();
-const relatedTopics = topics.filter((topic) => article?.relatedTopics.some((item) => item.slug === topic.slug));
 ---
 
 <SiteLayout title={article ? article.zhTitle : "文章未找到"}>
@@ -17,7 +14,8 @@ const relatedTopics = topics.filter((topic) => article?.relatedTopics.some((item
     <ContentLayout
       title={article.zhTitle}
       intro={article.summary}
-      meta={[article.publishedAt, toChineseContentType(article.contentType)]}
+      eyebrow={toChineseContentType(article.contentType)}
+      meta={[article.publishedAt, article.sourceTitle]}
     >
       <section class="stack">
         <div class="panel" style="padding: 18px 20px;">
@@ -57,16 +55,6 @@ const relatedTopics = topics.filter((topic) => article?.relatedTopics.some((item
           <div class="eyebrow">证据链</div>
           <EvidenceList evidence={article.evidenceLinks} />
         </div>
-        {relatedTopics.length > 0 && (
-          <div class="stack">
-            <div class="eyebrow">关联专题</div>
-            <div class="grid-two">
-              {relatedTopics.map((topic) => (
-                <TopicCard topic={topic} />
-              ))}
-            </div>
-          </div>
-        )}
       </section>
     </ContentLayout>
   ) : (

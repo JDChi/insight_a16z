@@ -19,17 +19,13 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function getHomeData() {
-  const [articles, topics, digests] = await Promise.all([
-    getArticles(),
-    getTopics(),
-    getDigests()
-  ]);
+  const articles = await getArticles();
+  const articleInsights = articles.filter((article) => article.contentType === "Article");
+  const investmentNews = articles.filter((article) => article.contentType === "Investment News");
 
   return {
-    leadDigest: digests[0] ?? null,
-    articles: articles.slice(0, 6),
-    investmentNews: articles.filter((article) => article.contentType === "Investment News").slice(0, 3),
-    topics: topics.slice(0, 4)
+    articles: articleInsights.slice(0, 4),
+    investmentNews: investmentNews.slice(0, 3)
   };
 }
 
@@ -38,6 +34,14 @@ export async function getArticles() {
     return fetchJson<typeof sampleArticleSummaries>("/api/articles");
   }
   return sampleArticleSummaries;
+}
+
+export async function getArticleInsights() {
+  return (await getArticles()).filter((article) => article.contentType === "Article");
+}
+
+export async function getInvestmentNews() {
+  return (await getArticles()).filter((article) => article.contentType === "Investment News");
 }
 
 export async function getArticleBySlug(slug: string) {

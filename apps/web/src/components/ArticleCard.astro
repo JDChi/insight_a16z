@@ -17,7 +17,7 @@ const { article } = Astro.props;
 
 <article class="card panel">
   <div class="meta">
-    <span>{toChineseContentType(article.contentType)}</span>
+    <span class="type-pill">{toChineseContentType(article.contentType)}</span>
     <span>{article.publishedAt}</span>
   </div>
   <h3><a href={`/articles/${article.slug}`}>{article.zhTitle}</a></h3>
@@ -31,9 +31,18 @@ const { article } = Astro.props;
 
 <style>
   .card {
-    padding: 22px;
+    padding: 24px;
     display: grid;
-    gap: 14px;
+    gap: 15px;
+    background: var(--panel-raised);
+    border-color: var(--line-strong);
+    transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+    border-color: rgba(138, 54, 18, 0.24);
   }
 
   .meta,
@@ -46,16 +55,45 @@ const { article } = Astro.props;
     font-size: 0.85rem;
   }
 
+  h3 {
+    font-size: 1.42rem;
+    line-height: 1.12;
+  }
+
+  h3 a {
+    color: var(--text);
+  }
+
+  h3 a:hover {
+    color: var(--accent-strong);
+  }
+
+  p {
+    margin: 0;
+    color: var(--muted-strong);
+  }
+
+  .type-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.85rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(182, 77, 19, 0.14), rgba(182, 77, 19, 0.08));
+    color: var(--accent-strong);
+    font-weight: 600;
+  }
+
   .tags span {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 2.25rem;
-    padding: 0.45rem 1rem;
+    min-height: 2rem;
+    padding: 0.35rem 0.85rem;
     line-height: 1.1;
     border-radius: 999px;
-    background: var(--accent-soft);
-    color: var(--accent);
+    background: rgba(182, 77, 19, 0.08);
+    color: var(--accent-strong);
     text-align: center;
     white-space: nowrap;
   }

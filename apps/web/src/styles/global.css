@@ -41,7 +41,7 @@ select {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-soft);
   backdrop-filter: blur(16px);
 }
 
@@ -59,6 +59,10 @@ select {
 .stack {
   display: grid;
   gap: 18px;
+}
+
+main {
+  padding-bottom: 24px;
 }
 
 .grid-two {
