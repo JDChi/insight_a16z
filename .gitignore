@@ -2,6 +2,7 @@ node_modules
 .astro
 dist
 .wrangler
+.tmp
 playwright-report
 test-results
 .env
