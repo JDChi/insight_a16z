@@ -275,10 +275,20 @@ describe("heuristic analysis client", () => {
     };
 
     expect(buildArticleFactPromptConfig(article).jsonPrompt).toContain('"summary":"..."');
+    expect(buildArticleFactPromptConfig(article).objectPrompt).toContain("summary、keyPoints、evidenceLinks.claim 和 evidenceLinks.evidenceText 必须使用中文");
+    expect(buildArticleFactPromptConfig(article).objectPrompt).toContain("candidateTopics 继续使用英文 kebab-case");
+    expect(buildArticleFactPromptConfig(article).objectPrompt).toContain("sourceLocator 保持原文定位格式");
     expect(buildArticleJudgementPromptConfig(article, facts).jsonPrompt).toContain('"coreShift":"..."');
+    expect(buildArticleJudgementPromptConfig(article, facts).objectPrompt).toContain("keyJudgements 和 coreShift 必须使用中文");
     expect(buildArticleTitlePromptConfig(article, facts, judgements).objectPrompt).toContain("不要只写赛道层面的共识");
     expect(buildArticleTitlePromptConfig(article, facts, judgements).jsonPrompt).toContain('"zhTitle":"..."');
     expect(buildArticleOutlookPromptConfig(article, facts, judgements).jsonPrompt).toContain('"timeHorizon":"未来 6-12 个月"');
     expect(buildArticleOutlookPromptConfig(article, facts, judgements).objectPrompt).toContain("不能写成“是否出现更多案例”");
+    expect(buildArticleOutlookPromptConfig(article, facts, judgements).objectPrompt).toContain(
+      "statement、timeHorizon、whyNow 和 signalsToWatch 必须使用中文"
+    );
+    expect(buildArticleOutlookPromptConfig(article, facts, judgements).objectPrompt).toContain(
+      "confidence 继续使用 high|medium|low"
+    );
   });
 });

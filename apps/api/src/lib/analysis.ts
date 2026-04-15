@@ -701,7 +701,10 @@ export function buildArticleFactPromptConfig(article: ArticleGenerationInput): P
     "你是一个严谨的中文科技内容分析助手。",
     "请先只做事实抽取，不要生成标题、趋势推演或泛泛评论。",
     "输出高信息密度的摘要、要点、候选专题和证据链，保持克制，不要营销化。",
+    "summary、keyPoints、evidenceLinks.claim 和 evidenceLinks.evidenceText 必须使用中文。",
     "候选专题 slug 使用英文 kebab-case，例如 agent-workflows、consumer-ai。",
+    "candidateTopics 继续使用英文 kebab-case。",
+    "sourceLocator 保持原文定位格式，例如 paragraph:1、section:pricing。",
     `标题: ${article.sourceTitle}`,
     `类型: ${article.contentType}`,
     `发布日期: ${article.publishedAt}`,
@@ -735,6 +738,7 @@ export function buildArticleJudgementPromptConfig(
     "你是一个严谨的中文科技研究编辑。",
     "请只基于给定事实，归纳这篇文章的关键判断。",
     "同时给出一条 coreShift，表示这篇文章最核心的变化、转向或结构性判断。",
+    "keyJudgements 和 coreShift 必须使用中文。",
     "不要生成标题，不要做未来推演。",
     context
   ].join("\n");
@@ -785,6 +789,7 @@ export function buildArticleOutlookPromptConfig(
     "你是一个严谨的中文科技研究编辑。",
     "请只基于给定事实和判断，生成一条未来推演。",
     "推演必须是结构化短块，但每一项都要具体，不要写成空泛赛道套话。",
+    "statement、timeHorizon、whyNow 和 signalsToWatch 必须使用中文，confidence 继续使用 high|medium|low。",
     "statement 必须写清楚最可能发生的具体变化，最好体现从 A 走向 B，而不是只说某赛道会继续发展。",
     "timeHorizon 应尽量收窄，优先使用“未来 3-6 个月”“未来 6-12 个月”“未来 12-18 个月”等更具体表达，避免笼统写“未来 3-12 个月”。",
     "whyNow 必须说明变化发生的具体驱动，例如供给变化、需求变化、成本变化、分发变化、采购流程变化、产品机制变化，不能只说“文章已经指出”或“文章已经给出判断”。",
