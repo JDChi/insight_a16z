@@ -19,13 +19,9 @@ export function toChineseTopicName(value: string): string {
 }
 
 export function toChineseReviewState(state: string): string {
-  if (state === "draft") return "草稿";
   if (state === "ingested") return "待分析";
   if (state === "processing") return "分析中";
-  if (state === "reviewing") return "待审核";
-  if (state === "approved") return "已通过";
   if (state === "published") return "已发布";
-  if (state === "rejected") return "已驳回";
   if (state === "pending") return "待处理";
   if (state === "running") return "运行中";
   if (state === "succeeded") return "成功";

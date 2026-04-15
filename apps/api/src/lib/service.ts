@@ -317,7 +317,7 @@ export class ContentService {
       const includeFailed = options?.includeFailed ?? true;
       const candidates = (await this.repo.listArticles())
         .filter((article) => {
-          if (article.reviewState === "ingested" || article.reviewState === "draft") {
+          if (article.reviewState === "ingested") {
             return true;
           }
 

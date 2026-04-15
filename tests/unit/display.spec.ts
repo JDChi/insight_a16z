@@ -13,7 +13,6 @@ describe("display helpers", () => {
     expect(toChineseTopicName("enterprise-ai")).toBe("企业 AI");
     expect(toChineseTopicName("Enterprise Ai")).toBe("企业 AI");
     expect(toChineseReviewState("published")).toBe("已发布");
-    expect(toChineseReviewState("reviewing")).toBe("待审核");
     expect(toChineseReviewState("ingested")).toBe("待分析");
     expect(toChineseReviewState("processing")).toBe("分析中");
     expect(toChineseJobType("weekly-ingestion")).toBe("定时采集");
@@ -23,5 +22,11 @@ describe("display helpers", () => {
     expect(toChineseJobType("topic-rebuild")).toBe("专题重建");
     expect(toChineseConfidence("high")).toBe("高置信度");
     expect(toChineseConfidence("medium")).toBe("中置信度");
+  });
+
+  it("leaves removed review-only states unmapped", () => {
+    expect(toChineseReviewState("reviewing")).toBe("reviewing");
+    expect(toChineseReviewState("approved")).toBe("approved");
+    expect(toChineseReviewState("rejected")).toBe("rejected");
   });
 });

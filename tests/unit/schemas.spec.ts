@@ -1,4 +1,4 @@
-import { articleAnalysisSchema, trendPredictionSchema } from "@insight-a16z/core";
+import { articleAnalysisSchema, reviewStates, trendPredictionSchema } from "@insight-a16z/core";
 
 describe("analysis schemas", () => {
   it("accepts valid article analysis payloads", () => {
@@ -42,5 +42,9 @@ describe("analysis schemas", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("only exposes the active publishing states", () => {
+    expect(reviewStates).toEqual(["ingested", "processing", "published", "failed"]);
   });
 });

@@ -16,8 +16,7 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command:
-      "PUBLIC_DATA_MODE=fixtures TEST_ADMIN_EMAIL=admin@local.test pnpm --filter @insight-a16z/web dev --host 127.0.0.1 --port 4321",
+    command: "PUBLIC_DATA_MODE=fixtures pnpm --filter @insight-a16z/web dev --host 127.0.0.1 --port 4321",
     url: "http://127.0.0.1:4321",
     reuseExistingServer: true,
     timeout: 120_000

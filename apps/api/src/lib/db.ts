@@ -321,7 +321,7 @@ export class MemoryRepository implements ContentRepository {
       intro: input.analysis.intro,
       articleCount: input.supportingArticles.length,
       updatedAt: nowIso(),
-      reviewState: "reviewing",
+      reviewState: "published",
       currentConsensus: input.analysis.currentConsensus,
       disagreements: input.analysis.disagreements,
       trendPredictions: input.analysis.trendPredictions,
@@ -334,7 +334,7 @@ export class MemoryRepository implements ContentRepository {
       id: crypto.randomUUID(),
       entityType: "topic",
       entityId: id,
-      state: "reviewing",
+      state: "published",
       reviewer: null,
       reviewNote: null,
       updatedAt: nowIso()
@@ -364,8 +364,8 @@ export class MemoryRepository implements ContentRepository {
       title: input.analysis.title,
       weekStart: input.weekStart,
       weekEnd: input.weekEnd,
-      reviewState: "reviewing",
-      publishedAt: existing?.publishedAt ?? null,
+      reviewState: "published",
+      publishedAt: existing?.publishedAt ?? nowIso(),
       topSignals: input.analysis.topSignals,
       topicMovements: input.analysis.topicMovements,
       trendPredictions: input.analysis.trendPredictions,
@@ -376,7 +376,7 @@ export class MemoryRepository implements ContentRepository {
       id: crypto.randomUUID(),
       entityType: "digest",
       entityId: digest.id,
-      state: "reviewing",
+      state: "published",
       reviewer: null,
       reviewNote: null,
       updatedAt: nowIso()
@@ -805,7 +805,7 @@ class D1Repository implements ContentRepository {
       .prepare(
         `INSERT OR REPLACE INTO topics (
           id, slug, name, intro, current_consensus_json, disagreements_json, trend_predictions_json, review_state, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'reviewing', ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'published', ?)`
       )
       .bind(
         topicId,
@@ -882,7 +882,7 @@ class D1Repository implements ContentRepository {
         `INSERT OR REPLACE INTO weekly_digests (
           id, slug, title, week_start, week_end, top_signals_json, topic_movements_json, trend_predictions_json,
           review_state, published_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'reviewing', COALESCE((SELECT published_at FROM weekly_digests WHERE id = ?), NULL),
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'published', COALESCE((SELECT published_at FROM weekly_digests WHERE id = ?), ?),
           COALESCE((SELECT created_at FROM weekly_digests WHERE id = ?), ?), ?)`
       )
       .bind(
@@ -895,6 +895,7 @@ class D1Repository implements ContentRepository {
         stringifyJson(input.analysis.topicMovements),
         stringifyJson(input.analysis.trendPredictions),
         id,
+        nowIso(),
         id,
         nowIso(),
         nowIso()

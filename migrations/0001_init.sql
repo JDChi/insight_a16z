@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS articles (
   candidate_topics_json TEXT DEFAULT '[]',
   raw_r2_key TEXT,
   cleaned_r2_key TEXT,
-  review_state TEXT NOT NULL DEFAULT 'draft',
+  review_state TEXT NOT NULL DEFAULT 'ingested',
   published_on TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS topics (
   current_consensus_json TEXT DEFAULT '[]',
   disagreements_json TEXT DEFAULT '[]',
   trend_predictions_json TEXT DEFAULT '[]',
-  review_state TEXT NOT NULL DEFAULT 'draft',
+  review_state TEXT NOT NULL DEFAULT 'published',
   updated_at TEXT NOT NULL
 );
 
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS weekly_digests (
   top_signals_json TEXT DEFAULT '[]',
   topic_movements_json TEXT DEFAULT '[]',
   trend_predictions_json TEXT DEFAULT '[]',
-  review_state TEXT NOT NULL DEFAULT 'draft',
+  review_state TEXT NOT NULL DEFAULT 'published',
   published_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
