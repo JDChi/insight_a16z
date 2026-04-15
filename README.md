@@ -12,7 +12,7 @@
 
 ## 技术栈
 
-- `apps/web`: `Astro` 内容站与最小后台
+- `apps/web`: `Astro` 内容站
 - `apps/api`: `Hono + Cloudflare Workers` API、采集、分析、队列处理
 - `packages/core`: 共享 schema、类型和 fixture
 - `migrations`: `D1` 初始化 SQL
@@ -23,7 +23,7 @@
 - 生成中文标题、摘要、要点、关键判断
 - 聚合专题，输出共识、分歧和趋势推演
 - 生成每周周报
-- 最小后台支持查看任务状态、文章队列和手动触发批处理
+- 通过公开前台页面直接消费已发布内容
 - 单元、集成、E2E 测试
 
 ## 状态流转
@@ -55,7 +55,6 @@ pnpm --filter @insight-a16z/web dev
 ```bash
 PUBLIC_DATA_MODE=api
 PUBLIC_API_BASE_URL=http://127.0.0.1:8787
-TEST_ADMIN_EMAIL=admin@local.test
 ```
 
 本地 API 如需接入真实模型，可在 [apps/api/.dev.vars.example](/Users/chijiaduo/develop/insight_a16z/apps/api/.dev.vars.example) 的基础上创建 `apps/api/.dev.vars`：
@@ -68,6 +67,12 @@ AI_MODEL=replace-with-your-model
 
 `apps/api/src/local-dev.ts` 会自动读取这个文件；`wrangler dev` 也会使用同名本地变量文件。代码优先读取通用的 `AI_*` 变量，并兼容旧的 `OPENAI_*` 配置。
 
+如需手动触发一次 bootstrap 抓取，可额外在 `apps/api/.dev.vars` 中设置：
+
+```env
+ADMIN_TRIGGER_TOKEN=replace-with-a-bootstrap-token
+```
+
 ## 队列与抓取
 
 正常运行遵循：
@@ -77,11 +82,9 @@ AI_MODEL=replace-with-your-model
 - `cron` 每次只处理一小批 `ingested`
 - Worker 重启后，下次 `cron` 会继续从数据库状态接着跑
 
-手动接口与 `cron` 的分工：
+运行时以 `cron` 为主；如需一次性初始化或补采，可使用唯一保留的内部入口：
 
-- `POST /internal/ingestion/run`: 抓取最近一年的目标文章并入库
-- `POST /internal/analysis/articles/process`: 手动跑一批待分析文章
-- `GET /internal/analysis/articles/status`: 查看当前可恢复队列状态
+- `POST /internal/bootstrap`: 通过 `x-admin-token` 手动触发一次抓取
 
 ## 测试
 
@@ -108,7 +111,7 @@ pnpm test:e2e
 - `database_id`
 - `bucket_name`
 - `SESSION` 的 `KV namespace id`
-- `ADMIN_EMAILS`
+- `ADMIN_TRIGGER_TOKEN`
 - `AI_API_KEY`
 - `AI_BASE_URL`
 - `AI_MODEL`

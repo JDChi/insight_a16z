@@ -37,9 +37,8 @@ loadDevVars();
 const app = createApp();
 
 const env = {
-  AUTH_MODE: "test" as const,
-  TEST_ADMIN_EMAIL: process.env.TEST_ADMIN_EMAIL ?? "admin@local.test",
   SEED_FIXTURES: process.env.SEED_FIXTURES ?? "false",
+  ADMIN_TRIGGER_TOKEN: process.env.ADMIN_TRIGGER_TOKEN,
   AI_API_KEY: process.env.AI_API_KEY,
   AI_BASE_URL: process.env.AI_BASE_URL,
   AI_MODEL: process.env.AI_MODEL,

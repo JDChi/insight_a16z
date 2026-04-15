@@ -3,8 +3,6 @@ import {
   sampleArticles,
   sampleDigestSummaries,
   sampleDigests,
-  sampleJobs,
-  sampleOverview,
   sampleTopicSummaries,
   sampleTopics
 } from "@insight-a16z/core";
@@ -75,46 +73,4 @@ export async function getDigestBySlug(slug: string) {
     return fetchJson<(typeof sampleDigests)[number]>(`/api/digests/${slug}`);
   }
   return sampleDigests.find((digest) => digest.slug === slug) ?? null;
-}
-
-export async function getAdminOverview() {
-  if (mode === "api") {
-    return fetchJson<typeof sampleOverview>("/internal/overview", {
-      headers: buildAdminHeaders()
-    });
-  }
-  return sampleOverview;
-}
-
-export async function getJobs() {
-  if (mode === "api") {
-    return fetchJson<typeof sampleJobs>("/internal/jobs", {
-      headers: buildAdminHeaders()
-    });
-  }
-  return sampleJobs;
-}
-
-export async function getAdminArticles() {
-  if (mode === "api") {
-    return fetchJson<typeof sampleArticleSummaries>("/internal/articles", {
-      headers: buildAdminHeaders()
-    });
-  }
-  return sampleArticleSummaries;
-}
-
-export async function getAdminTopics() {
-  if (mode === "api") {
-    return fetchJson<typeof sampleTopicSummaries>("/internal/topics", {
-      headers: buildAdminHeaders()
-    });
-  }
-  return sampleTopicSummaries;
-}
-
-export function buildAdminHeaders(): HeadersInit {
-  return {
-    "x-test-admin-email": import.meta.env.TEST_ADMIN_EMAIL ?? "admin@local.test"
-  };
 }

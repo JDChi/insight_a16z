@@ -25,8 +25,14 @@ test("article and topic pages render structured content", async ({ page }) => {
   await expect(page.locator("header nav")).not.toContainText("后台");
 });
 
-test("admin list no longer shows manual approve actions", async ({ page }) => {
-  await page.goto("/admin/articles");
+test("admin routes no longer exist", async ({ page }) => {
+  const adminResponse = await page.goto("/admin");
+  expect(adminResponse?.status()).toBe(404);
 
-  await expect(page.getByRole("button", { name: "通过" })).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText("后台概览");
+  await expect(page.locator("body")).not.toContainText("文章队列");
+
+  const adminArticlesResponse = await page.goto("/admin/articles");
+  expect(adminArticlesResponse?.status()).toBe(404);
+  await expect(page.locator("body")).not.toContainText("文章队列");
 });

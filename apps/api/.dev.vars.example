@@ -3,6 +3,6 @@ AI_BASE_URL=https://api.example.com/v1
 AI_API_KEY=replace-with-your-api-key
 AI_MODEL=replace-with-your-model
 
-# Optional local admin/testing settings
-TEST_ADMIN_EMAIL=admin@local.test
+# Optional token for POST /internal/bootstrap during local testing
+ADMIN_TRIGGER_TOKEN=replace-with-a-bootstrap-token
 SEED_FIXTURES=false

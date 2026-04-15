@@ -10,7 +10,7 @@ describe("public API", () => {
 
   it("returns published articles only", async () => {
     const app = createApp();
-    const response = await app.request("/api/articles", {}, { AUTH_MODE: "test" });
+    const response = await app.request("/api/articles", {}, {});
     const json = await response.json();
 
     expect(response.status).toBe(200);
@@ -19,7 +19,7 @@ describe("public API", () => {
 
   it("returns a published article detail", async () => {
     const app = createApp();
-    const response = await app.request("/api/articles/ai-companions-and-the-next-interface", {}, { AUTH_MODE: "test" });
+    const response = await app.request("/api/articles/ai-companions-and-the-next-interface", {}, {});
     const json = await response.json();
 
     expect(response.status).toBe(200);
@@ -29,7 +29,7 @@ describe("public API", () => {
 
   it("does not seed fixture content when explicitly disabled", async () => {
     const app = createApp();
-    const response = await app.request("/api/articles", {}, { AUTH_MODE: "test", SEED_FIXTURES: "false" });
+    const response = await app.request("/api/articles", {}, { SEED_FIXTURES: "false" });
     const json = await response.json();
 
     expect(response.status).toBe(200);
@@ -41,7 +41,7 @@ describe("public API", () => {
 
     const response = await apiEntry.fetch(
       new Request("https://example.com/"),
-      { AUTH_MODE: "test", SEED_FIXTURES: "false" },
+      { SEED_FIXTURES: "false" },
       { waitUntil } as unknown as ExecutionContext
     );
 

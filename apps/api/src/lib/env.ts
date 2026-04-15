@@ -9,9 +9,6 @@ export interface Env {
   OPENAI_MODEL?: string;
   SEED_FIXTURES?: string;
   AUTO_PUBLISH_IMPORTED?: string;
-  ADMIN_EMAILS?: string;
   ADMIN_TRIGGER_TOKEN?: string;
-  AUTH_MODE?: "cloudflare-access" | "test";
-  TEST_ADMIN_EMAIL?: string;
   PUBLIC_SITE_URL?: string;
 }

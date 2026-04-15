@@ -85,7 +85,7 @@ describe("article queue", () => {
     });
 
     const { runRecoverableQueueCycle } = await import("../../apps/api/src/lib/article-queue");
-    const result = await runRecoverableQueueCycle({ AUTH_MODE: "test" } as never);
+    const result = await runRecoverableQueueCycle({} as never);
 
     expect(result).toMatchObject({
       started: true,

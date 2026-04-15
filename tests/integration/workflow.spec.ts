@@ -10,7 +10,7 @@ describe("content workflow", () => {
   });
 
   it("publishes articles immediately after analysis", async () => {
-    const service = createContentService({ AUTH_MODE: "test" });
+    const service = createContentService({});
     await service.seedFixtures();
 
     const articles = await service.listAllArticles();
@@ -77,7 +77,7 @@ describe("content workflow", () => {
   });
 
   it("processes queued ingested articles and republishes them", async () => {
-    const service = createContentService({ AUTH_MODE: "test" });
+    const service = createContentService({});
     await service.seedFixtures();
 
     const articles = await service.listAllArticles();
@@ -93,7 +93,7 @@ describe("content workflow", () => {
   });
 
   it("rebuilds topics and weekly digests from analyzed articles", async () => {
-    const service = createContentService({ AUTH_MODE: "test" });
+    const service = createContentService({});
     await service.seedFixtures();
 
     const topics = await service.rebuildAllTopics();
