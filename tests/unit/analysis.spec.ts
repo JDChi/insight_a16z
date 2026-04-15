@@ -215,6 +215,44 @@ describe("heuristic analysis client", () => {
     expect(result.outlook.timeHorizon).toMatch(/未来/);
   });
 
+  it("falls back to a derived outlook when the generated outlook is too generic", async () => {
+    const result = await runArticleAnalysisPipeline(
+      {
+        sourceTitle: "Online Social Graphs in AI",
+        contentType: "Article",
+        publishedAt: "2026-04-10",
+        plainText: "The piece argues AI social products are moving from experimentation to stronger product mechanics."
+      },
+      {
+        extractFacts: async () => ({
+          summary: "文章讨论 AI 社交产品正在从概念讨论转向更具体的产品机制与分发路径。",
+          keyPoints: ["产品机制开始更重要。", "分发路径开始分化。", "商业化验证被更频繁讨论。"],
+          candidateTopics: ["online-social-graph"],
+          evidenceLinks: [
+            { claim: "判断一", evidenceText: "证据一", sourceLocator: "paragraph:1" },
+            { claim: "判断二", evidenceText: "证据二", sourceLocator: "paragraph:2" }
+          ]
+        }),
+        deriveJudgements: async () => ({
+          keyJudgements: ["AI 社交产品竞争会落到产品机制和分发上。", "商业化验证会成为下一阶段焦点。"],
+          coreShift: "从概念讨论转向更具体的产品机制与商业化路径。"
+        }),
+        generateTitle: async () => "AI 社交产品开始从话题走向机制竞争",
+        generateOutlook: async () => ({
+          statement: "未来 3-12 个月，Online Social Graph 赛道会从观点讨论进一步转向产品化落地与商业化验证。",
+          timeHorizon: "未来 3-12 个月",
+          whyNow: "文章已经给出明确判断，说明市场开始从概念讨论进入更具体的执行阶段。",
+          signalsToWatch: ["是否出现更多真实落地案例", "投资动态是否继续印证该方向"],
+          confidence: "low"
+        })
+      }
+    );
+
+    expect(result.outlook.statement).not.toContain("观点讨论进一步转向产品化落地与商业化验证");
+    expect(result.outlook.timeHorizon).toBe("未来 6-12 个月");
+    expect(result.outlook.signalsToWatch).not.toContain("是否出现更多真实落地案例");
+  });
+
   it("builds separate prompts for fact, judgement, title and outlook stages", () => {
     const article = {
       sourceTitle: "The Smartest Consumer Apps Now Cost $200 a Month",
@@ -240,6 +278,7 @@ describe("heuristic analysis client", () => {
     expect(buildArticleJudgementPromptConfig(article, facts).jsonPrompt).toContain('"coreShift":"..."');
     expect(buildArticleTitlePromptConfig(article, facts, judgements).objectPrompt).toContain("不要只写赛道层面的共识");
     expect(buildArticleTitlePromptConfig(article, facts, judgements).jsonPrompt).toContain('"zhTitle":"..."');
-    expect(buildArticleOutlookPromptConfig(article, facts, judgements).jsonPrompt).toContain('"timeHorizon":"未来 3-12 个月"');
+    expect(buildArticleOutlookPromptConfig(article, facts, judgements).jsonPrompt).toContain('"timeHorizon":"未来 6-12 个月"');
+    expect(buildArticleOutlookPromptConfig(article, facts, judgements).objectPrompt).toContain("不能写成“是否出现更多案例”");
   });
 });

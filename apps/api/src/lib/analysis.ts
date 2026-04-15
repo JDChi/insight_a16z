@@ -379,10 +379,10 @@ function buildArticleOutlook(input: {
 
   if (source.includes("consumer") || source.includes("companion") || normalizedText.includes("consumer")) {
     return {
-      statement: "未来 6-12 个月，消费级 AI 的竞争会继续从模型新鲜感转向关系设计、留存和分发效率。",
+      statement: "未来 6-12 个月，消费级 AI 应用会更快从功能炫技转向高频留存、付费结构和分发效率的竞争。",
       timeHorizon: "未来 6-12 个月",
-      whyNow: "文章已经把产品价值落在持续互动和用户关系，而不是一次性功能体验。",
-      signalsToWatch: ["产品是否强化人格与记忆", "是否出现更强的分发渠道优势", "留存是否成为主要叙事"],
+      whyNow: "文章已经把产品价值落在持续互动、用户关系和长期使用，而不是一次性的新奇体验。",
+      signalsToWatch: ["是否出现更清晰的订阅或高价付费结构", "产品是否更强调人格、记忆或关系维护机制", "竞争叙事是否从模型能力转向留存与分发"],
       confidence: "medium"
     };
   }
@@ -398,12 +398,42 @@ function buildArticleOutlook(input: {
   }
 
   return {
-    statement: `未来 3-12 个月，${topicName} 赛道会从观点讨论进一步转向产品化落地与商业化验证。`,
-    timeHorizon: "未来 3-12 个月",
-    whyNow: "文章已经给出明确判断，说明市场开始从概念讨论进入更具体的执行阶段。",
-    signalsToWatch: ["是否出现更多真实落地案例", "投资动态是否继续印证该方向"],
+    statement: `未来 6-12 个月，围绕${topicName}的产品会从单点能力展示转向更具体的产品机制、商业化路径或组织采用方式。`,
+    timeHorizon: "未来 6-12 个月",
+    whyNow: "文章的重点已经不只是描述概念，而是开始落到产品机制、买方逻辑或竞争结构这些更具体的变化上。",
+    signalsToWatch: [
+      "讨论重点是否从模型能力转向产品机制或业务流程",
+      "是否出现更清晰的付费、采购或部署模式",
+      "案例是否从概念验证转向可复用的落地路径"
+    ],
     confidence: "low"
   };
+}
+
+function isWeakOutlook(outlook: ArticleOutlook): boolean {
+  const statement = outlook.statement.trim();
+  const whyNow = outlook.whyNow.trim();
+  const signals = outlook.signalsToWatch.map((item) => item.trim());
+  const genericFragments = [
+    "从观点讨论进一步转向产品化落地与商业化验证",
+    "文章已经给出明确判断",
+    "是否出现更多真实落地案例",
+    "投资动态是否继续印证该方向"
+  ];
+
+  if (genericFragments.some((fragment) => statement.includes(fragment) || whyNow.includes(fragment))) {
+    return true;
+  }
+
+  if (outlook.timeHorizon.trim() === "未来 3-12 个月") {
+    return true;
+  }
+
+  if (signals.some((signal) => genericFragments.some((fragment) => signal.includes(fragment)))) {
+    return true;
+  }
+
+  return false;
 }
 
 export function extractJsonObject(text: string): string {
@@ -754,8 +784,12 @@ export function buildArticleOutlookPromptConfig(
   const sharedPrompt = [
     "你是一个严谨的中文科技研究编辑。",
     "请只基于给定事实和判断，生成一条未来推演。",
-    "推演必须包含最可能发生的变化、你选择的时间跨度、为什么是现在、应该观察哪些信号，以及置信度。",
-    "不要复述摘要，不要生成标题。",
+    "推演必须是结构化短块，但每一项都要具体，不要写成空泛赛道套话。",
+    "statement 必须写清楚最可能发生的具体变化，最好体现从 A 走向 B，而不是只说某赛道会继续发展。",
+    "timeHorizon 应尽量收窄，优先使用“未来 3-6 个月”“未来 6-12 个月”“未来 12-18 个月”等更具体表达，避免笼统写“未来 3-12 个月”。",
+    "whyNow 必须说明变化发生的具体驱动，例如供给变化、需求变化、成本变化、分发变化、采购流程变化、产品机制变化，不能只说“文章已经指出”或“文章已经给出判断”。",
+    "signalsToWatch 必须是可以观察的具体现象，不能写成“是否出现更多案例”“投资动态是否继续印证”这种任何赛道都适用的空话。",
+    "不要复述摘要，不要生成标题，不要写成宏观行业报告。",
     `原文标题: ${article.sourceTitle}`,
     `摘要: ${facts.summary}`,
     `关键判断: ${judgements.keyJudgements.join(" | ")}`,
@@ -768,7 +802,7 @@ export function buildArticleOutlookPromptConfig(
     jsonPrompt: [
       sharedPrompt,
       "请只输出一个 JSON 对象，不要输出 Markdown、表格、解释或代码块。",
-      '输出格式必须是 {"statement":"...","timeHorizon":"未来 3-12 个月","whyNow":"...","signalsToWatch":["..."],"confidence":"high|medium|low"}'
+      '输出格式必须是 {"statement":"...","timeHorizon":"未来 6-12 个月","whyNow":"...","signalsToWatch":["..."],"confidence":"high|medium|low"}'
     ].join("\n")
   };
 }
@@ -817,7 +851,16 @@ export async function runArticleAnalysisPipeline(
 
   let outlook: ArticleOutlook;
   try {
-    outlook = articleOutlookSchema.parse(await stages.generateOutlook(article, facts, judgements));
+    const generatedOutlook = articleOutlookSchema.parse(await stages.generateOutlook(article, facts, judgements));
+    outlook = isWeakOutlook(generatedOutlook)
+      ? buildArticleOutlook({
+          sourceTitle: article.sourceTitle,
+          summary: facts.summary,
+          keyJudgements: judgements.keyJudgements,
+          candidateTopics: facts.candidateTopics,
+          plainText: article.plainText
+        })
+      : generatedOutlook;
   } catch {
     outlook = buildArticleOutlook({
       sourceTitle: article.sourceTitle,
