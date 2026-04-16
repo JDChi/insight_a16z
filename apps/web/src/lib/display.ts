@@ -18,6 +18,24 @@ export function toChineseTopicName(value: string): string {
   return value;
 }
 
+export function formatBeijingDate(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric"
+  }).formatToParts(date);
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${getPart("year")}年${getPart("month")}月${getPart("day")}日`;
+}
+
 export function toChineseReviewState(state: string): string {
   if (state === "ingested") return "待分析";
   if (state === "processing") return "分析中";

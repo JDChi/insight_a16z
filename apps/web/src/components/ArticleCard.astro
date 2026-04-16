@@ -1,5 +1,5 @@
 ---
-import { toChineseContentType, toChineseTopicName } from "../lib/display";
+import { formatBeijingDate, toChineseContentType, toChineseTopicName } from "../lib/display";
 
 interface Props {
   article: {
@@ -18,7 +18,7 @@ const { article } = Astro.props;
 <article class="card panel">
   <div class="meta">
     <span class="type-pill">{toChineseContentType(article.contentType)}</span>
-    <span>{article.publishedAt}</span>
+    <time class="published-date" datetime={article.publishedAt}>{formatBeijingDate(article.publishedAt)}</time>
   </div>
   <h3><a href={`/articles/${article.slug}`}>{article.zhTitle}</a></h3>
   <p class="summary">{article.summary}</p>
@@ -48,6 +48,7 @@ const { article } = Astro.props;
   .meta,
   .tags {
     display: flex;
+    align-items: center;
     gap: 10px;
     flex-wrap: wrap;
     font-family: var(--font-ui);
@@ -93,6 +94,13 @@ const { article } = Astro.props;
     background: linear-gradient(180deg, rgba(182, 77, 19, 0.14), rgba(182, 77, 19, 0.08));
     color: var(--accent-strong);
     font-weight: 600;
+  }
+
+  .published-date {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.85rem;
+    line-height: 1;
   }
 
   .tags span {

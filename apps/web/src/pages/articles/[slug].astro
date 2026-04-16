@@ -3,7 +3,7 @@ import ContentLayout from "../../layouts/ContentLayout.astro";
 import SiteLayout from "../../layouts/SiteLayout.astro";
 import EmptyState from "../../components/EmptyState.astro";
 import EvidenceList from "../../components/EvidenceList.astro";
-import { toChineseContentType } from "../../lib/display";
+import { formatBeijingDate, toChineseContentType } from "../../lib/display";
 import { getArticleBySlug } from "../../lib/content-source";
 
 const article = await getArticleBySlug(Astro.params.slug ?? "");
@@ -15,7 +15,7 @@ const article = await getArticleBySlug(Astro.params.slug ?? "");
       title={article.zhTitle}
       intro={article.summary}
       eyebrow={toChineseContentType(article.contentType)}
-      meta={[article.publishedAt, article.sourceTitle]}
+      meta={[formatBeijingDate(article.publishedAt), article.sourceTitle]}
     >
       <section class="stack">
         <div class="panel" style="padding: 18px 20px;">
