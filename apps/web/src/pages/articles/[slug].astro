@@ -15,11 +15,11 @@ const article = await getArticleBySlug(Astro.params.slug ?? "");
       title={article.zhTitle}
       intro={article.summary}
       eyebrow={toChineseContentType(article.contentType)}
-      meta={[formatBeijingDate(article.publishedAt), article.sourceTitle]}
     >
       <section class="stack">
         <div class="panel" style="padding: 18px 20px;">
           <div class="eyebrow">来源信息</div>
+          <p><strong>发布时间：</strong>{formatBeijingDate(article.publishedAt)}</p>
           <p><strong>英文原标题：</strong>{article.sourceTitle}</p>
           <p><strong>来源：</strong><a href={article.sourceUrl} target="_blank" rel="noreferrer">查看 a16z 原文</a></p>
         </div>
