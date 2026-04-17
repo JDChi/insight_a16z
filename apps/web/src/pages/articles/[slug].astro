@@ -2,7 +2,6 @@
 import ContentLayout from "../../layouts/ContentLayout.astro";
 import SiteLayout from "../../layouts/SiteLayout.astro";
 import EmptyState from "../../components/EmptyState.astro";
-import EvidenceList from "../../components/EvidenceList.astro";
 import { formatBeijingDate, toChineseContentType } from "../../lib/display";
 import { getArticleBySlug } from "../../lib/content-source";
 
@@ -49,11 +48,6 @@ const article = await getArticleBySlug(Astro.params.slug ?? "");
           <p><strong>为什么是现在：</strong>{article.outlook.whyNow}</p>
           <p><strong>重点信号：</strong>{article.outlook.signalsToWatch.join("、")}</p>
           <p><strong>置信度：</strong>{article.outlook.confidence === "high" ? "高" : article.outlook.confidence === "medium" ? "中" : "低"}</p>
-        </div>
-
-        <div>
-          <div class="eyebrow">证据链</div>
-          <EvidenceList evidence={article.evidenceLinks} />
         </div>
       </section>
     </ContentLayout>
