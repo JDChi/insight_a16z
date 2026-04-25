@@ -366,11 +366,12 @@ export class ContentService {
   private async reclaimStaleProcessingArticles(): Promise<void> {
     const cutoff = Date.now() - STALE_PROCESSING_ARTICLE_WINDOW_MS;
     const currentArticles = await this.repo.listArticles();
+    const articleById = new Map(currentArticles.map((article) => [article.id, article]));
     const currentProcessingIds = new Set(
       currentArticles.filter((article) => article.reviewState === "processing").map((article) => article.id)
     );
     const reviewStates = await this.repo.listReviewStates();
-    const staleArticleIds = unique(
+    const staleReviewStateArticleIds = unique(
       reviewStates
         .filter((record) => {
           if (record.entityType !== "article" || record.state !== "processing") {
@@ -386,6 +387,26 @@ export class ContentService {
         })
         .map((record) => record.entityId)
     );
+    const analysisRuns = await this.repo.listAnalysisRuns({ entityType: "article" });
+    const staleAnalysisRuns = analysisRuns.filter((run) => {
+      if (run.status !== "running") {
+        return false;
+      }
+
+      const updatedAt = Date.parse(run.updatedAt);
+      return Number.isFinite(updatedAt) && updatedAt <= cutoff;
+    });
+
+    for (const run of staleAnalysisRuns) {
+      await this.repo.completeAnalysisRun(run.id, "failed", {
+        errorMessage: "Recovered stale analysis run"
+      });
+    }
+
+    const staleAnalysisArticleIds = staleAnalysisRuns
+      .map((run) => run.entityId)
+      .filter((articleId) => articleById.get(articleId)?.reviewState === "processing");
+    const staleArticleIds = unique([...staleReviewStateArticleIds, ...staleAnalysisArticleIds]);
 
     for (const articleId of staleArticleIds) {
       await this.setEntityState(

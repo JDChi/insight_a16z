@@ -2,11 +2,16 @@ import { resetArticleQueueState } from "../../apps/api/src/lib/article-queue";
 import { MemoryObjectStore, MemoryRepository, resetMemoryStores } from "../../apps/api/src/lib/db";
 import { AnalysisOutputRejectedError } from "../../apps/api/src/lib/analysis";
 import { ContentService, createContentService } from "../../apps/api/src/lib/service";
+import { afterEach, vi } from "vitest";
 
 describe("content workflow", () => {
   beforeEach(() => {
     resetMemoryStores();
     resetArticleQueueState();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("publishes articles immediately after analysis", async () => {
@@ -233,6 +238,77 @@ describe("content workflow", () => {
     expect(runs).toHaveLength(2);
     expect(runs.map((run) => run.status).sort()).toEqual(["rejected", "succeeded"]);
     expect(runs.every((run) => run.durationMs !== null)).toBe(true);
+  });
+
+  it("reclaims stale running analysis runs and republishes the article on the next queue cycle", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-15T05:11:56.271Z"));
+
+    const repo = new MemoryRepository();
+    const objectStore = new MemoryObjectStore();
+    await repo.seedFixtures();
+
+    const [target] = await repo.listArticles();
+    await repo.setReviewState({
+      entityType: "article",
+      entityId: target.id,
+      state: "processing",
+      reviewer: "system@analysis",
+      note: "Simulated stuck run"
+    });
+    const staleRun = await repo.createAnalysisRun({
+      runType: "article-analysis",
+      entityType: "article",
+      entityId: target.id,
+      promptVersion: "article-analysis-v2",
+      inputR2Key: "cleaned/stale.json"
+    });
+
+    vi.setSystemTime(new Date("2026-04-15T05:45:00.000Z"));
+
+    const service = new ContentService(repo, objectStore, {
+      async analyzeArticle() {
+        return {
+          zhTitle: "恢复后重新发布的洞察标题",
+          summary: "这是一段有效的中文摘要。",
+          keyPoints: ["要点一", "要点二", "要点三"],
+          keyJudgements: ["判断一", "判断二"],
+          outlook: {
+            statement: "未来 6-12 个月，流程化产品会继续深化。",
+            timeHorizon: "未来 6-12 个月",
+            whyNow: "卡住任务被回收后，队列可以恢复正常吞吐。",
+            signalsToWatch: ["重试任务重新进入发布流"],
+            confidence: "medium"
+          },
+          candidateTopics: ["agent-workflows"],
+          evidenceLinks: [
+            { claim: "判断一", evidenceText: "要点一", sourceLocator: "paragraph:1" },
+            { claim: "判断二", evidenceText: "要点二", sourceLocator: "paragraph:2" }
+          ]
+        };
+      },
+      async analyzeTopic() {
+        throw new Error("not used");
+      },
+      async analyzeDigest() {
+        throw new Error("not used");
+      }
+    });
+
+    const result = await service.processPendingArticles({ limit: 1, rebuildTopics: false, rebuildDigest: false });
+    const updated = await repo.getArticleById(target.id);
+    const runs = await repo.listAnalysisRuns({ entityType: "article", entityId: target.id });
+    const recoveredRun = runs.find((run) => run.id === staleRun.id);
+
+    expect(result.processed).toBe(1);
+    expect(result.published).toBe(1);
+    expect(updated?.reviewState).toBe("published");
+    expect(recoveredRun).toMatchObject({
+      status: "failed",
+      errorMessage: "Recovered stale analysis run"
+    });
+    expect(runs.some((run) => run.status === "running")).toBe(false);
+    expect(runs.some((run) => run.status === "succeeded")).toBe(true);
   });
 
   it("disambiguates a duplicate insight title and still publishes the article", async () => {
